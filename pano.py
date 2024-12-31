@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
             
         try:
             # Get the node visual
-            node_visual = self.graph_view.graph_manager.node_visuals.get(self.selected_entity.id)
+            node_visual = self.graph_view.graph_manager.nodes.get(self.selected_entity.id)
             if node_visual:
                 # Create and run coroutine
                 loop = asyncio.get_event_loop()
