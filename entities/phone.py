@@ -9,7 +9,7 @@ class Phone(Entity):
     """Entity representing a phone number"""
     name: ClassVar[str] = "Phone"
     description: ClassVar[str] = "A phone number with country code and metadata"
-    color: ClassVar[str] = "#BD0D3C"
+    color: ClassVar[str] = "#b82549"
     type_label: ClassVar[str] = "PHONE"
     
     def init_properties(self):
