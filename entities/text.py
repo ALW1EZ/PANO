@@ -22,3 +22,6 @@ class Text(Entity):
     @entity_property
     def text(self) -> str:
         return ""
+    
+    def get_main_display(self) -> str:
+        return self.text or "Text"

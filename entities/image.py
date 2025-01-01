@@ -40,3 +40,6 @@ class Image(Entity):
     @entity_property
     def source(self) -> str:
         return ""
+
+    def get_main_display(self) -> str:
+        return self.title or "Image"
