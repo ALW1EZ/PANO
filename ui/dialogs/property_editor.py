@@ -1,6 +1,5 @@
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, 
-                           QLineEdit, QSpinBox, QDoubleSpinBox,
-                           QCheckBox, QPushButton, QLabel, QHBoxLayout, QDialogButtonBox)
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout,
+                             QLineEdit, QLabel, QHBoxLayout, QDialogButtonBox)
 from PyQt6.QtCore import Qt
 from typing import Dict, Any
 from entities import Entity
@@ -14,7 +13,7 @@ class PropertyEditor(QDialog):
     
     def _setup_ui(self):
         """Setup the dialog UI"""
-        self.setWindowTitle(f"Edit {self.entity.type} Properties")
+        self.setWindowTitle(f"Edit Properties")
         layout = QVBoxLayout(self)
         
         # Create input fields for each property
