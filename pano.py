@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QPointF, QMimeData, QSize
 from PyQt6.QtGui import QAction, QDrag, QIcon
 import networkx as nx
-from ui.graph_manager import GraphView, NodeVisual
+from ui.views.graph_view import GraphView, NodeVisual
 from entities import ENTITY_TYPES, load_entities
 from transforms import TRANSFORMS, ENTITY_TRANSFORMS, load_transforms
 import asyncio
@@ -19,7 +19,7 @@ from typing import Optional, Dict, Any
 from qasync import QEventLoop, asyncSlot
 from ui.managers.layout_manager import LayoutManager
 
-from ui import GraphView, NodeVisual, EdgeVisual
+from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
 import asyncio
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QDockWidget, QVBoxLayout, QWidget, QToolBar,
@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QPointF, QMimeData, QSize
 from PyQt6.QtGui import QAction, QDrag, QIcon
 import networkx as nx
-from ui.graph_manager import GraphView, NodeVisual
+from ui.views.graph_view import GraphView, NodeVisual
 from entities import ENTITY_TYPES, load_entities
 from transforms import TRANSFORMS, ENTITY_TRANSFORMS, load_transforms
 import json
