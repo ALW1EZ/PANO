@@ -1,7 +1,7 @@
 from typing import Dict, Any
 import asyncio
 import logging
-from PyQt6.QtCore import QPointF
+from PyQt6.QtCore import QPointF, Qt
 
 from entities import Entity
 from ..components.node_visual import NodeVisual
@@ -27,22 +27,23 @@ class GraphManager:
         self.nodes[entity.id] = node
         return node
         
-    def add_edge(self, source_id: str, target_id: str, relationship: str = "") -> None:
+    def add_edge(self, source_id: str, target_id: str, relationship: str = "") -> EdgeVisual | None:
         """Add a new edge between nodes"""
         if source_id not in self.nodes or target_id not in self.nodes:
             logger.error(f"Cannot create edge: node not found")
-            return
+            return None
             
         edge_id = f"{source_id}->{target_id}"
         if edge_id in self.edges:
             logger.warning(f"Edge {edge_id} already exists")
-            return
+            return self.edges[edge_id]
             
         source = self.nodes[source_id]
         target = self.nodes[target_id]
         edge = EdgeVisual(source, target, relationship)
         self.view.scene.addItem(edge)
         self.edges[edge_id] = edge
+        return edge
         
     def remove_node(self, node_id: str) -> None:
         """Remove a node and its connected edges from the graph"""
@@ -94,7 +95,8 @@ class GraphManager:
             edges_data[edge_id] = {
                 'source': edge.source.node.id,
                 'target': edge.target.node.id,
-                'relationship': edge.relationship
+                'relationship': edge.relationship,
+                'style': edge.style.style.value
             }
             
         return {
@@ -117,11 +119,14 @@ class GraphManager:
             
         # Then restore edges
         for edge_id, edge_data in data['edges'].items():
-            self.add_edge(
+            edge = self.add_edge(
                 edge_data['source'],
                 edge_data['target'],
                 edge_data['relationship']
             )
+            # Restore edge style if present
+            if 'style' in edge_data and edge:
+                edge.style.style = Qt.PenStyle(edge_data['style'])
             
         # Allow UI to update
         await asyncio.sleep(0) 
