@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 from .base import Entity, entity_property
+from datetime import date
 
 @dataclass
 class Event(Entity):
@@ -13,6 +14,8 @@ class Event(Entity):
         self.setup_properties({
             "name": str,
             "description": str,
+            "start_date": date,
+            "ends_date": date,
             "notes": str,
             "source": str
         })
@@ -34,6 +37,14 @@ class Event(Entity):
 
     @entity_property
     def source(self) -> str:
+        return ""
+    
+    @entity_property
+    def start_date(self) -> str:
+        return ""
+    
+    @entity_property
+    def end_date(self) -> str:
         return ""
 
     def get_main_display(self) -> str:
