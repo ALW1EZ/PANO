@@ -54,9 +54,15 @@ class Event(Entity):
         data = super().to_dict()
         # Convert datetime objects to ISO format strings
         if self.start_date:
-            data['start_date'] = self.start_date.isoformat()
+            if isinstance(self.start_date, datetime):
+                data['start_date'] = self.start_date.isoformat()
+            elif isinstance(self.start_date, str):
+                data['start_date'] = self.start_date
         if self.end_date:
-            data['end_date'] = self.end_date.isoformat()
+            if isinstance(self.end_date, datetime):
+                data['end_date'] = self.end_date.isoformat()
+            elif isinstance(self.end_date, str):
+                data['end_date'] = self.end_date
         return data
     
     @classmethod

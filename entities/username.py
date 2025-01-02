@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, Dict
 from .base import Entity, entity_property
 
 @dataclass
@@ -22,3 +22,6 @@ class Username(Entity):
     @entity_property
     def username(self) -> str:
         return ""
+
+    def get_main_display(self) -> str:
+        return self.username or "Username"
