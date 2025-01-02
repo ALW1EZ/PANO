@@ -97,7 +97,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PANO - Investigation Platform")
+        self.setWindowTitle("PANO - Platform for Analysis and Network Operations")
         self.selected_entity = None
         self.current_file = None
         
