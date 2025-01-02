@@ -2,10 +2,13 @@ from typing import Dict, Any
 import asyncio
 import logging
 from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtGui import QColor
 
 from entities import Entity
+from entities.event import Event
 from ..components.node_visual import NodeVisual
 from ..components.edge_visual import EdgeVisual
+from ..dialogs.timeline_editor import TimelineEvent
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,22 @@ class GraphManager:
         node.setPos(pos)
         self.view.scene.addItem(node)
         self.nodes[entity.id] = node
+        
+        # If it's an event with dates, add it to the timeline
+        if isinstance(entity, Event):
+            window = self.view.window()
+            if hasattr(window, 'timeline_manager'):
+                if entity.start_date and entity.end_date:
+                    timeline_event = TimelineEvent(
+                        title=entity.name or "Unnamed Event",
+                        description=entity.description or "",
+                        start_time=entity.start_date,
+                        end_time=entity.end_date,
+                        color=QColor(entity.color)
+                    )
+                    timeline_event.source_entity_id = entity.id
+                    window.timeline_manager.add_event(timeline_event)
+        
         return node
         
     def add_edge(self, source_id: str, target_id: str, relationship: str = "") -> EdgeVisual | None:
@@ -64,6 +83,17 @@ class GraphManager:
             
         # Remove the node
         node = self.nodes.pop(node_id)
+        
+        # If it's an event node, remove its timeline event
+        if isinstance(node.node, Event):
+            window = self.view.window()
+            if hasattr(window, 'timeline_manager'):
+                timeline_manager = window.timeline_manager
+                existing_events = [e for e in timeline_manager.get_events() 
+                                 if getattr(e, 'source_entity_id', None) == node_id]
+                for event in existing_events:
+                    timeline_manager.timeline_widget.delete_event(event)
+        
         self.view.scene.removeItem(node)
         
     def clear(self) -> None:

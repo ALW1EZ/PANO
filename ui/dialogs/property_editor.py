@@ -2,8 +2,10 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout,
                              QLineEdit, QLabel, QHBoxLayout, QDialogButtonBox,
                              QPushButton, QDateTimeEdit)
 from PyQt6.QtCore import Qt, QDateTime
+from PyQt6.QtGui import QIcon
 from typing import Dict, Any
 from entities import Entity
+from datetime import datetime
 
 class PropertyEditor(QDialog):
     def __init__(self, entity: Entity, parent=None):
@@ -31,16 +33,24 @@ class PropertyEditor(QDialog):
             # Input field
             input_field = QLineEdit()
             current_value = self.entity.properties.get(prop_name, "")
-            input_field.setText(str(current_value))
+            
+            # Format datetime values
+            if prop_name in ['start_date', 'end_date'] and isinstance(current_value, datetime):
+                current_value = current_value.strftime("%Y-%m-%d %H:%M")
+            else:
+                current_value = str(current_value)
+                
+            input_field.setText(current_value)
             
             self.inputs[prop_name] = input_field
             row.addWidget(input_field)
             
             # Add date picker button for date fields
-            if prop_name in ['start_date', 'ends_date']:
-                date_button = QPushButton("")
+            if prop_name in ['start_date', 'end_date']:
+                date_button = QPushButton("📅")  # Calendar emoji as icon
                 date_button.setFixedWidth(30)
-                date_button.clicked.connect(lambda checked, field=input_field: self._show_date_picker(field))
+                date_button.clicked.connect(lambda checked, field=input_field, name=prop_name: 
+                                         self._show_date_picker(field, name))
                 row.addWidget(date_button)
             
             layout.addLayout(row)
@@ -77,6 +87,14 @@ class PropertyEditor(QDialog):
                 padding: 5px 15px;
                 border-radius: 2px;
             }
+            QPushButton[text="📅"] {
+                background-color: transparent;
+                border: 1px solid #3F3F46;
+                padding: 2px;
+            }
+            QPushButton[text="📅"]:hover {
+                background-color: #3F3F46;
+            }
         """)
         
     def get_values(self) -> Dict[str, Any]:
@@ -84,11 +102,20 @@ class PropertyEditor(QDialog):
         values = {}
         for prop_name, input_field in self.inputs.items():
             value = input_field.text().strip()
-            # Always include the value, even if empty
+            
+            # Convert date strings to datetime objects
+            if prop_name in ['start_date', 'end_date'] and value:
+                try:
+                    # Parse the date string and set seconds to 00
+                    dt = datetime.strptime(value, "%Y-%m-%d %H:%M")
+                    value = dt.replace(second=0)
+                except ValueError:
+                    value = None
+                    
             values[prop_name] = value
         return values 
 
-    def _show_date_picker(self, input_field: QLineEdit):
+    def _show_date_picker(self, input_field: QLineEdit, prop_name: str):
         """Show date picker dialog and update the input field"""
         date_dialog = QDialog(self)
         date_dialog.setWindowTitle("Select Date and Time")
@@ -96,13 +123,13 @@ class PropertyEditor(QDialog):
         
         date_picker = QDateTimeEdit(date_dialog)
         date_picker.setCalendarPopup(True)
-        date_picker.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        date_picker.setDisplayFormat("yyyy-MM-dd HH:mm")  # Removed seconds from display
         
         # Try to parse existing date if any
         current_text = input_field.text()
         try:
             if current_text:
-                current_date = QDateTime.fromString(current_text, "yyyy-MM-dd HH:mm:ss")
+                current_date = QDateTime.fromString(current_text, "yyyy-MM-dd HH:mm")
                 if current_date.isValid():
                     date_picker.setDateTime(current_date)
                 else:
@@ -111,6 +138,11 @@ class PropertyEditor(QDialog):
                 date_picker.setDateTime(QDateTime.currentDateTime())
         except:
             date_picker.setDateTime(QDateTime.currentDateTime())
+            
+        # Set seconds to 00
+        current_dt = date_picker.dateTime()
+        current_dt.setTime(current_dt.time().addSecs(-current_dt.time().second()))
+        date_picker.setDateTime(current_dt)
             
         layout.addWidget(date_picker)
         
@@ -140,12 +172,33 @@ class PropertyEditor(QDialog):
                 padding: 5px 15px;
                 border-radius: 2px;
             }
+            QCalendarWidget {
+                background-color: #2D2D30;
+                color: #CCCCCC;
+            }
+            QCalendarWidget QToolButton {
+                color: #CCCCCC;
+            }
+            QCalendarWidget QMenu {
+                background-color: #2D2D30;
+                color: #CCCCCC;
+            }
+            QCalendarWidget QSpinBox {
+                background-color: #2D2D30;
+                color: #CCCCCC;
+                selection-background-color: #007ACC;
+            }
         """)
         
         date_dialog.exec()
         
     def _update_date_field(self, input_field: QLineEdit, date_picker: QDateTimeEdit, dialog: QDialog):
         """Update the input field with the selected date"""
-        selected_date = date_picker.dateTime().toString("yyyy-MM-dd HH:mm:ss")
+        # Get date and ensure seconds are 00
+        selected_dt = date_picker.dateTime()
+        selected_dt.setTime(selected_dt.time().addSecs(-selected_dt.time().second()))
+        
+        # Format without seconds
+        selected_date = selected_dt.toString("yyyy-MM-dd HH:mm")
         input_field.setText(selected_date)
         dialog.accept() 

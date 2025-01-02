@@ -1,11 +1,14 @@
 from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene
 from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal, QSizeF
 from PyQt6.QtGui import QPainter, QColor, QPainterPath, QPen, QBrush
+from typing import Optional
 
 from ..components.node_visual import NodeVisual, NodeVisualState
 from ..components.edge_visual import EdgeVisual
 from ..managers.graph_manager import GraphManager
 from entities import Entity, ENTITY_TYPES
+from entities.event import Event
+from ..dialogs.timeline_editor import TimelineEvent
 
 class GraphView(QGraphicsView):
     scaleChanged = pyqtSignal(float)
@@ -45,6 +48,33 @@ class GraphView(QGraphicsView):
         # Set dark theme background
         self.setBackgroundBrush(QColor(30, 30, 30))
         
+    def sync_event_to_timeline(self, entity: Event):
+        """Sync an event entity with the timeline"""
+        if not hasattr(self.window(), 'timeline_manager'):
+            return
+            
+        timeline_manager = self.window().timeline_manager
+        
+        # Create timeline event if dates are set
+        if entity.start_date and entity.end_date:
+            timeline_event = TimelineEvent(
+                title=entity.name or "Unnamed Event",
+                description=entity.description or "",
+                start_time=entity.start_date,
+                end_time=entity.end_date,
+                color=QColor(entity.color)
+            )
+            
+            # Remove any existing events for this entity
+            existing_events = [e for e in timeline_manager.get_events() 
+                             if getattr(e, 'source_entity_id', None) == entity.id]
+            for event in existing_events:
+                timeline_manager.timeline_widget.delete_event(event)
+            
+            # Add new event with source reference
+            timeline_event.source_entity_id = entity.id
+            timeline_manager.add_event(timeline_event)
+
     def handle_selection_changed(self):
         """Handle selection changes in the scene"""
         selected_items = self.scene.selectedItems()
@@ -56,6 +86,9 @@ class GraphView(QGraphicsView):
                     item.set_state(NodeVisualState.NORMAL)
                 else:
                     item.set_state(NodeVisualState.SELECTED)
+                    # If it's an event, sync with timeline after property changes
+                    if isinstance(item.node, Event):
+                        item.node.on_properties_changed = lambda: self.sync_event_to_timeline(item.node)
                     
         # Update connected nodes for selected edges
         for item in selected_items:
@@ -225,6 +258,16 @@ class GraphView(QGraphicsView):
         for node in selected_nodes:
             if hasattr(self, 'graph_manager'):
                 self.graph_manager.remove_node(node.node.id)
+
+    def add_node(self, entity: Entity, pos: Optional[QPointF] = None) -> Optional[NodeVisual]:
+        """Add a node to the graph"""
+        node = self.graph_manager.add_node(entity, pos)
+        
+        # If it's an event with dates, add it to the timeline
+        if isinstance(entity, Event):
+            self.sync_event_to_timeline(entity)
+        
+        return node
 
     # ... [Rest of the GraphView implementation from graph_manager.py]
     # Note: Include all the methods from the original GraphView class 

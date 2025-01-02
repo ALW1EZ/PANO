@@ -1,3 +1,4 @@
+from datetime import datetime
 import sys
 import os
 import json
@@ -8,7 +9,7 @@ from PyQt6.QtWidgets import (
     QSplitter, QListWidgetItem, QDockWidget, QVBoxLayout, QWidget
 )
 from PyQt6.QtCore import Qt, QPointF, QMimeData, QSize
-from PyQt6.QtGui import QAction, QDrag, QIcon
+from PyQt6.QtGui import QAction, QDrag, QIcon, QColor
 import networkx as nx
 from ui.views.graph_view import GraphView, NodeVisual
 from entities import ENTITY_TYPES, load_entities
@@ -18,6 +19,8 @@ import logging
 from typing import Optional, Dict, Any
 from qasync import QEventLoop, asyncSlot
 from ui.managers.layout_manager import LayoutManager
+from ui.managers.timeline_manager import TimelineManager
+import aiofiles
 
 from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
 import asyncio
@@ -82,6 +85,15 @@ class DraggableEntityList(QListWidget):
         drag.setMimeData(mime_data)
         drag.exec(Qt.DropAction.CopyAction)
 
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        # If it's already a string in ISO format, return it as is
+        if isinstance(obj, str) and 'T' in obj and obj.count('-') == 2:
+            return obj
+        return super().default(obj)
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -97,8 +109,9 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self.resize(1200, 800)
         
-        # Create layout manager
+        # Create managers
         self.layout_manager = LayoutManager(self.graph_view)
+        self.timeline_manager = TimelineManager(self)
         
         logger.info("PANO initialized successfully")
         
@@ -344,28 +357,73 @@ class MainWindow(QMainWindow):
     @asyncSlot()
     async def save_investigation(self):
         """Save the current investigation to a file"""
+        if not self.current_file:
+            file_name, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Investigation",
+                "",
+                "PANO Files (*.pano);;All Files (*)"
+            )
+            if not file_name:
+                return
+            if not file_name.endswith('.pano'):
+                file_name += '.pano'
+            self.current_file = file_name
+
         try:
-            if not self.current_file:
-                file_name, _ = QFileDialog.getSaveFileName(
-                    self,
-                    "Save Investigation",
-                    "",
-                    "PANO Files (*.pano);;All Files (*)"
-                )
-                if not file_name:
-                    return
-                self.current_file = file_name
-            
             # Get graph data
-            graph_data = self.graph_view.graph_manager.to_dict()
+            nodes_data = []
+            edges_data = []
             
-            # Save to file
-            with open(self.current_file, 'w') as f:
-                json.dump(graph_data, f, indent=2)
+            # Save nodes with all properties
+            for node_id, node in self.graph_view.graph_manager.nodes.items():
+                node_data = {
+                    'id': node_id,
+                    'entity_type': node.node.__class__.__name__,
+                    'properties': node.node.to_dict(),
+                    'pos': {
+                        'x': node.pos().x(),
+                        'y': node.pos().y()
+                    }
+                }
+                nodes_data.append(node_data)
+            
+            # Save edges with all properties including style and relationship
+            for edge_id, edge in self.graph_view.graph_manager.edges.items():
+                edge_data = {
+                    'id': edge_id,
+                    'source': edge.source.node.id,
+                    'target': edge.target.node.id,
+                    'relationship': getattr(edge, 'relationship', ''),
+                    'style': {
+                        'pen_style': edge.style.style.value if hasattr(edge.style, 'style') else Qt.PenStyle.SolidLine.value,
+                        'color': edge.style.color.name() if hasattr(edge.style, 'color') else '#000000',
+                        'width': getattr(edge.style, 'width', 1)
+                    }
+                }
                 
+                # Add optional properties if they exist
+                if hasattr(edge, 'label'):
+                    edge_data['label'] = edge.label
+                if hasattr(edge, 'properties'):
+                    edge_data['properties'] = edge.properties
+                
+                edges_data.append(edge_data)
+
+            # Create investigation data
+            investigation_data = {
+                'nodes': nodes_data,
+                'edges': edges_data,
+                'timeline_events': self.timeline_manager.serialize_events()
+            }
+
+            # Save to file
+            async with aiofiles.open(self.current_file, 'w') as f:
+                await f.write(json.dumps(investigation_data, indent=2, cls=DateTimeEncoder))
+
             self.statusBar().showMessage(f"Investigation saved to {self.current_file}", 3000)
             logger.info(f"Investigation saved to {self.current_file}")
-            
+
         except Exception as e:
             logger.error(f"Failed to save investigation: {str(e)}", exc_info=True)
             QMessageBox.critical(self, "Save Error", f"Failed to save investigation: {str(e)}")
@@ -373,43 +431,82 @@ class MainWindow(QMainWindow):
     @asyncSlot()
     async def load_investigation(self):
         """Load an investigation from a file"""
+        file_name, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Investigation",
+            "",
+            "PANO Files (*.pano);;All Files (*)"
+        )
+        if not file_name:
+            return
+
         try:
-            file_name, _ = QFileDialog.getOpenFileName(
-                self,
-                "Load Investigation",
-                "",
-                "PANO Files (*.pano);;All Files (*)"
-            )
-            if not file_name:
-                return
-                
-            # Load from file
-            with open(file_name, 'r') as f:
-                graph_data = json.load(f)
-            
-            # Clear current graph and load new data
+            async with aiofiles.open(file_name, 'r') as f:
+                content = await f.read()
+                investigation_data = json.loads(content)
+
+            # Clear existing graph
             self.graph_view.graph_manager.clear()
-            await self.graph_view.graph_manager.from_dict(graph_data)
-            
+            self.timeline_manager.clear_events()
+
+            # Load nodes
+            nodes = {}
+            for node_data in investigation_data['nodes']:
+                entity_type = ENTITY_TYPES[node_data['entity_type']]
+                properties = node_data['properties']
+                properties['_id'] = node_data['id']  # Set ID in properties before creating entity
+                entity = entity_type.from_dict(properties)
+                pos = QPointF(node_data['pos']['x'], node_data['pos']['y'])
+                node = self.graph_view.graph_manager.add_node(entity, pos)
+                nodes[node_data['id']] = node
+
+            # Load edges with all properties
+            for edge_data in investigation_data['edges']:
+                source_id = edge_data['source']
+                target_id = edge_data['target']
+                
+                # Create edge with relationship
+                edge = self.graph_view.graph_manager.add_edge(
+                    source_id, 
+                    target_id,
+                    edge_data.get('relationship', '')
+                )
+                
+                if edge and 'style' in edge_data:
+                    # Restore edge style
+                    style_data = edge_data['style']
+                    edge.style.style = Qt.PenStyle(style_data['pen_style'])
+                    edge.style.color = QColor(style_data['color'])
+                    edge.style.width = style_data['width']
+                    edge.update()  # Ensure the edge is redrawn with new style
+                
+                if edge and 'label' in edge_data:
+                    edge.label = edge_data['label']
+                    edge.update()
+                
+                if edge and 'properties' in edge_data:
+                    edge.properties = edge_data['properties']
+
+            # Load timeline events
+            if 'timeline_events' in investigation_data:
+                self.timeline_manager.deserialize_events(investigation_data['timeline_events'])
+
             self.current_file = file_name
             self.statusBar().showMessage(f"Investigation loaded from {file_name}", 3000)
             logger.info(f"Investigation loaded from {file_name}")
-            
+
         except Exception as e:
             logger.error(f"Failed to load investigation: {str(e)}", exc_info=True)
             QMessageBox.critical(self, "Load Error", f"Failed to load investigation: {str(e)}")
     
     def new_investigation(self):
         """Create a new investigation"""
-        try:
+        if QMessageBox.question(self, "Clear Investigation", "Are you sure you want to clear the current investigation?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
             self.graph_view.graph_manager.clear()
+            self.timeline_manager.clear_events()
             self.current_file = None
             self.statusBar().showMessage("New investigation created", 3000)
             logger.info("New investigation created")
-            
-        except Exception as e:
-            logger.error(f"Failed to create new investigation: {str(e)}", exc_info=True)
-            QMessageBox.critical(self, "Error", f"Failed to create new investigation: {str(e)}")
 
     def apply_circular_layout(self):
         """Arrange nodes in a circular layout"""

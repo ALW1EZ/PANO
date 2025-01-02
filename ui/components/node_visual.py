@@ -19,6 +19,7 @@ import os
 from qasync import asyncSlot
 
 from entities import Entity
+from entities.event import Event
 from transforms import ENTITY_TRANSFORMS
 from ..styles.node_style import NodeStyle
 from ..dialogs.property_editor import PropertyEditor
@@ -282,11 +283,7 @@ class NodeVisual(QGraphicsObject):
 
     def mouseDoubleClickEvent(self, event):
         """Handle double-click to edit properties"""
-        dialog = PropertyEditor(self.node, self.scene().views()[0])
-        if dialog.exec() == PropertyEditor.DialogCode.Accepted:
-            self.node.properties.update(dialog.get_values())
-            self.node.update_data()
-            self.update_label()
+        self._edit_properties()
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self, event):
@@ -376,12 +373,18 @@ class NodeVisual(QGraphicsObject):
             raise
 
     def _edit_properties(self):
-        """Edit node properties"""
+        """Show property editor dialog"""
         dialog = PropertyEditor(self.node, self.scene().views()[0])
-        if dialog.exec() == PropertyEditor.DialogCode.Accepted:
+        if dialog.exec():
             self.node.properties.update(dialog.get_values())
             self.node.update_data()
             self.update_label()
+            
+            # Trigger timeline sync for Event entities
+            if isinstance(self.node, Event):
+                view = self.scene().views()[0]
+                if hasattr(view, 'sync_event_to_timeline'):
+                    view.sync_event_to_timeline(self.node)
 
     def _delete_node(self):
         """Delete this node"""

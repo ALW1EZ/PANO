@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 from .base import Entity, entity_property
-from datetime import date
+from datetime import datetime
 
 @dataclass
 class Event(Entity):
@@ -14,8 +14,8 @@ class Event(Entity):
         self.setup_properties({
             "name": str,
             "description": str,
-            "start_date": date,
-            "ends_date": date,
+            "start_date": datetime,
+            "end_date": datetime,
             "notes": str,
             "source": str
         })
@@ -40,12 +40,30 @@ class Event(Entity):
         return ""
     
     @entity_property
-    def start_date(self) -> str:
-        return ""
+    def start_date(self) -> datetime:
+        return None
     
     @entity_property
-    def end_date(self) -> str:
-        return ""
+    def end_date(self) -> datetime:
+        return None
 
     def get_main_display(self) -> str:
         return self.name or "Event"
+        
+    def to_dict(self) -> dict:
+        data = super().to_dict()
+        # Convert datetime objects to ISO format strings
+        if self.start_date:
+            data['start_date'] = self.start_date.isoformat()
+        if self.end_date:
+            data['end_date'] = self.end_date.isoformat()
+        return data
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Event':
+        # Convert ISO format strings back to datetime objects
+        if 'start_date' in data and data['start_date']:
+            data['start_date'] = datetime.fromisoformat(data['start_date'])
+        if 'end_date' in data and data['end_date']:
+            data['end_date'] = datetime.fromisoformat(data['end_date'])
+        return super().from_dict(data)
