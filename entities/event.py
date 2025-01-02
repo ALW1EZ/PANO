@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, Dict
 from .base import Entity, entity_property
 from datetime import datetime
 
@@ -73,3 +73,30 @@ class Event(Entity):
         if 'end_date' in data and data['end_date']:
             data['end_date'] = datetime.fromisoformat(data['end_date'])
         return super().from_dict(data)
+
+    def get_display_properties(self) -> Dict[str, str]:
+        """Get a dictionary of properties to display in the UI with formatted dates"""
+        props = super().get_display_properties()
+        
+        # Format dates if they exist
+        if self.start_date:
+            if isinstance(self.start_date, datetime):
+                props['start_date'] = self.start_date.strftime("%Y-%m-%d %H:%M")
+            elif isinstance(self.start_date, str):
+                try:
+                    dt = datetime.fromisoformat(self.start_date)
+                    props['start_date'] = dt.strftime("%Y-%m-%d %H:%M")
+                except ValueError:
+                    props['start_date'] = self.start_date  # Keep original if parsing fails
+                    
+        if self.end_date:
+            if isinstance(self.end_date, datetime):
+                props['end_date'] = self.end_date.strftime("%Y-%m-%d %H:%M")
+            elif isinstance(self.end_date, str):
+                try:
+                    dt = datetime.fromisoformat(self.end_date)
+                    props['end_date'] = dt.strftime("%Y-%m-%d %H:%M")
+                except ValueError:
+                    props['end_date'] = self.end_date  # Keep original if parsing fails
+            
+        return props

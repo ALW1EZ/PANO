@@ -31,29 +31,69 @@ class PropertyEditor(QDialog):
             row.addWidget(label)
             
             # Input field
-            input_field = QLineEdit()
-            current_value = self.entity.properties.get(prop_name, "")
-            
-            # Format datetime values
-            if prop_name in ['start_date', 'end_date'] and isinstance(current_value, datetime):
-                current_value = current_value.strftime("%Y-%m-%d %H:%M")
-            else:
-                current_value = str(current_value)
+            if prop_name in ['start_date', 'end_date']:
+                input_field = QDateTimeEdit()
+                input_field.setCalendarPopup(True)
+                input_field.setDisplayFormat("yyyy-MM-dd HH:mm")
                 
-            input_field.setText(current_value)
+                current_value = self.entity.properties.get(prop_name)
+                if current_value and isinstance(current_value, datetime):
+                    input_field.setDateTime(QDateTime.fromString(current_value.strftime("%Y-%m-%d %H:%M"), "yyyy-MM-dd HH:mm"))
+                else:
+                    input_field.setDateTime(QDateTime.currentDateTime())
+                
+                # Set seconds to 00
+                current_dt = input_field.dateTime()
+                current_dt.setTime(current_dt.time().addSecs(-current_dt.time().second()))
+                input_field.setDateTime(current_dt)
+            else:
+                input_field = QLineEdit()
+                current_value = str(self.entity.properties.get(prop_name, ""))
+                input_field.setText(current_value)
             
             self.inputs[prop_name] = input_field
             row.addWidget(input_field)
             
-            # Add date picker button for date fields
-            if prop_name in ['start_date', 'end_date']:
-                date_button = QPushButton("📅")  # Calendar emoji as icon
-                date_button.setFixedWidth(30)
-                date_button.clicked.connect(lambda checked, field=input_field, name=prop_name: 
-                                         self._show_date_picker(field, name))
-                row.addWidget(date_button)
-            
-            layout.addLayout(row)
+            # Remove date picker button for date fields since QDateTimeEdit has built-in calendar
+            if prop_name not in ['start_date', 'end_date']:
+                layout.addLayout(row)
+            else:
+                # Add custom styling for QDateTimeEdit
+                input_field.setStyleSheet("""
+                    QDateTimeEdit {
+                        background-color: #1E1E1E;
+                        color: #CCCCCC;
+                        border: 1px solid #3F3F46;
+                        padding: 5px;
+                        border-radius: 2px;
+                    }
+                    QDateTimeEdit::drop-down {
+                        border: none;
+                        width: 20px;
+                    }
+                    QDateTimeEdit::down-arrow {
+                        image: none;
+                        width: 12px;
+                        height: 12px;
+                    }
+                    QCalendarWidget {
+                        background-color: #2D2D30;
+                        color: #CCCCCC;
+                    }
+                    QCalendarWidget QToolButton {
+                        color: #CCCCCC;
+                    }
+                    QCalendarWidget QMenu {
+                        background-color: #2D2D30;
+                        color: #CCCCCC;
+                    }
+                    QCalendarWidget QSpinBox {
+                        background-color: #2D2D30;
+                        color: #CCCCCC;
+                        selection-background-color: #007ACC;
+                    }
+                """)
+                layout.addLayout(row)
         
         # Add buttons
         buttons = QDialogButtonBox(
@@ -101,17 +141,14 @@ class PropertyEditor(QDialog):
         """Get the current values from all inputs"""
         values = {}
         for prop_name, input_field in self.inputs.items():
-            value = input_field.text().strip()
-            
-            # Convert date strings to datetime objects
-            if prop_name in ['start_date', 'end_date'] and value:
-                try:
-                    # Parse the date string and set seconds to 00
-                    dt = datetime.strptime(value, "%Y-%m-%d %H:%M")
+            if prop_name in ['start_date', 'end_date']:
+                if isinstance(input_field, QDateTimeEdit):
+                    dt = input_field.dateTime().toPyDateTime()
                     value = dt.replace(second=0)
-                except ValueError:
+                else:
                     value = None
-                    
+            else:
+                value = input_field.text().strip()
             values[prop_name] = value
         return values 
 

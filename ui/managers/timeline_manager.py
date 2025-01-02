@@ -79,13 +79,17 @@ class TimelineManager:
         """Serialize timeline events for saving"""
         events = []
         for event in self.get_events():
-            events.append({
+            event_data = {
                 'title': event.title,
                 'description': event.description,
                 'start_time': event.start_time.isoformat(),
                 'end_time': event.end_time.isoformat(),
                 'color': event.color.name()
-            })
+            }
+            # Save source entity ID if it exists
+            if hasattr(event, 'source_entity_id'):
+                event_data['source_entity_id'] = event.source_entity_id
+            events.append(event_data)
         return events
 
     def deserialize_events(self, events_data):
@@ -102,4 +106,7 @@ class TimelineManager:
                 datetime.fromisoformat(event_data['end_time']),
                 QColor(event_data['color'])
             )
+            # Restore source entity ID if it exists
+            if 'source_entity_id' in event_data:
+                event.source_entity_id = event_data['source_entity_id']
             self.add_event(event) 

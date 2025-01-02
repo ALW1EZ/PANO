@@ -84,10 +84,13 @@ class GraphView(QGraphicsView):
             if isinstance(item, NodeVisual):
                 if item not in selected_items:
                     item.set_state(NodeVisualState.NORMAL)
+                    # Remove the callback when deselected
+                    if isinstance(item.node, Event):
+                        item.node.on_properties_changed = None
                 else:
                     item.set_state(NodeVisualState.SELECTED)
-                    # If it's an event, sync with timeline after property changes
-                    if isinstance(item.node, Event):
+                    # Set up the callback only if it's not already set
+                    if isinstance(item.node, Event) and not hasattr(item.node, 'on_properties_changed'):
                         item.node.on_properties_changed = lambda: self.sync_event_to_timeline(item.node)
                     
         # Update connected nodes for selected edges
