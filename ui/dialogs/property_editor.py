@@ -137,7 +137,7 @@ class PropertyEditor(QDialog):
             }
         """)
         
-    def get_values(self) -> Dict[str, Any]:
+    def get_properties(self) -> Dict[str, Any]:
         """Get the current values from all inputs"""
         values = {}
         for prop_name, input_field in self.inputs.items():

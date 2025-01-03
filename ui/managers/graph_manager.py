@@ -6,9 +6,11 @@ from PyQt6.QtGui import QColor
 
 from entities import Entity
 from entities.event import Event
+from entities.location import Location
 from ..components.node_visual import NodeVisual
 from ..components.edge_visual import EdgeVisual
 from ..dialogs.timeline_editor import TimelineEvent
+from .map_manager import MapManager
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,11 @@ class GraphManager:
         self.view = view
         self.nodes: Dict[str, NodeVisual] = {}
         self.edges: Dict[str, EdgeVisual] = {}
+        self.map_manager: MapManager | None = None
+        
+    def set_map_manager(self, map_manager: MapManager) -> None:
+        """Set the map manager instance"""
+        self.map_manager = map_manager
         
     def add_node(self, entity: Entity, pos: QPointF) -> NodeVisual:
         """Add a new node to the graph"""
@@ -28,6 +35,10 @@ class GraphManager:
         node.setPos(pos)
         self.view.scene.addItem(node)
         self.nodes[entity.id] = node
+        
+        # Handle location entities
+        if isinstance(entity, Location) and self.map_manager:
+            self.map_manager.update_location(entity)
         
         # If it's an event with dates, add it to the timeline
         if isinstance(entity, Event):
@@ -64,11 +75,55 @@ class GraphManager:
         self.edges[edge_id] = edge
         return edge
         
+    def update_node(self, node_id: str, entity: Entity) -> None:
+        """Update an existing node's entity"""
+        if node_id not in self.nodes:
+            logger.warning(f"Node {node_id} not found")
+            return
+            
+        node = self.nodes[node_id]
+        old_entity = node.node
+        node.node = entity
+        node.update()
+        
+        # Handle location entities
+        if isinstance(entity, Location) and self.map_manager:
+            self.map_manager.update_location(entity)
+            
+        # Handle event entities
+        if isinstance(entity, Event):
+            window = self.view.window()
+            if hasattr(window, 'timeline_manager'):
+                # Remove old event from timeline if it exists
+                timeline_manager = window.timeline_manager
+                existing_events = [e for e in timeline_manager.get_events() 
+                                 if getattr(e, 'source_entity_id', None) == node_id]
+                for event in existing_events:
+                    timeline_manager.timeline_widget.delete_event(event)
+                    
+                # Add updated event to timeline if it has dates
+                if entity.start_date and entity.end_date:
+                    timeline_event = TimelineEvent(
+                        title=entity.name or "Unnamed Event",
+                        description=entity.description or "",
+                        start_time=entity.start_date,
+                        end_time=entity.end_date,
+                        color=QColor(entity.color)
+                    )
+                    timeline_event.source_entity_id = entity.id
+                    timeline_manager.add_event(timeline_event)
+        
     def remove_node(self, node_id: str) -> None:
         """Remove a node and its connected edges from the graph"""
         if node_id not in self.nodes:
             logger.warning(f"Node {node_id} not found")
             return
+            
+        node = self.nodes[node_id]
+        
+        # Handle location entities
+        if isinstance(node.node, Location) and self.map_manager:
+            self.map_manager.remove_location(node_id)
             
         # Remove connected edges first
         edges_to_remove = []
@@ -82,7 +137,7 @@ class GraphManager:
             self.view.scene.removeItem(edge)
             
         # Remove the node
-        node = self.nodes.pop(node_id)
+        self.nodes.pop(node_id)
         
         # If it's an event node, remove its timeline event
         if isinstance(node.node, Event):

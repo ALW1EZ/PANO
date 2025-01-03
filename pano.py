@@ -43,6 +43,7 @@ import logging
 from typing import Optional, Dict, Any
 from qasync import QEventLoop, asyncSlot
 from ui.managers.layout_manager import LayoutManager
+from ui.managers.map_manager import MapManager
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -113,6 +114,10 @@ class MainWindow(QMainWindow):
         # Create managers
         self.layout_manager = LayoutManager(self.graph_view)
         self.timeline_manager = TimelineManager(self)
+        self.map_manager = MapManager(self.map_widget)
+        
+        # Connect map manager to graph manager
+        self.graph_view.graph_manager.set_map_manager(self.map_manager)
         
         logger.info("PANO initialized successfully")
         
@@ -129,15 +134,17 @@ class MainWindow(QMainWindow):
         # Create vertical splitter
         self.vertical_splitter = QSplitter(Qt.Orientation.Vertical)
         
-        # Create the graph view
-        self.graph_view = GraphView()
-        self.vertical_splitter.addWidget(self.graph_view)
-        
-        # Create map widget
+        # Create map widget first
         self.map_widget = MapVisual()
+        
+        # Create the graph view after map widget
+        self.graph_view = GraphView()
+        
+        # Add widgets to splitter in order
+        self.vertical_splitter.addWidget(self.graph_view)
         self.vertical_splitter.addWidget(self.map_widget)
         
-        # Set initial sizes (70% graph, 30% map)
+        # Set initial sizes (100% graph, 0% map at start)
         self.vertical_splitter.setSizes([1000, 0])
         
         central_layout.addWidget(self.vertical_splitter)

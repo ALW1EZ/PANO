@@ -133,34 +133,27 @@ class MapVisual(QWidget):
         return False
     
     def _delete_nearby_marker(self, lat, lon, threshold=0.001):
+        """Delete any marker near the given coordinates"""
         for marker_id, marker_coords in list(self.markers.items()):
             if (abs(marker_coords[0] - lat) < threshold and 
                 abs(marker_coords[1] - lon) < threshold):
                 self.markers.pop(marker_id)
-                self._refresh_markers()
+                # Recreate the map to remove the marker
+                self.init_map()
+                # Re-add all remaining markers
+                for mid, (mlat, mlon) in self.markers.items():
+                    folium.Marker(
+                        [mlat, mlon],
+                        popup=f"Marker {mid}"
+                    ).add_to(self.folium_map)
+                self.update_map_display()
                 break
-    
-    def _refresh_markers(self):
-        # Clear existing markers
-        self.folium_map = folium.Map(
-            location=self.folium_map.location,
-            zoom_start=self.folium_map.zoom_start,
-            tiles='CartoDB dark_matter',
-            control_scale=True,
-            prefer_canvas=True
-        )
-        
-        # Re-add all markers
-        for marker_id, (lat, lon) in self.markers.items():
-            folium.Marker(
-                [lat, lon],
-                popup=f"Marker {marker_id}"
-            ).add_to(self.folium_map)
-            
-        self.update_map_display()
     
     def add_marker(self, lat, lon, popup=None):
         """Add a marker to the map"""
+        # Remove any existing marker at this location first
+        self._delete_nearby_marker(lat, lon)
+        
         self.marker_count += 1
         marker_id = self.marker_count
         self.markers[marker_id] = (lat, lon)

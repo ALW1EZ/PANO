@@ -23,7 +23,7 @@ from entities.event import Event
 from transforms import ENTITY_TRANSFORMS
 from ..styles.node_style import NodeStyle
 from ..dialogs.property_editor import PropertyEditor
-
+from ..managers.timeline_manager import TimelineEvent
 logger = logging.getLogger(__name__)
 
 class NodeVisualState(Enum):
@@ -373,18 +373,35 @@ class NodeVisual(QGraphicsObject):
             raise
 
     def _edit_properties(self):
-        """Show property editor dialog"""
-        dialog = PropertyEditor(self.node, self.scene().views()[0])
-        if dialog.exec():
-            self.node.properties.update(dialog.get_values())
-            self.node.update_data()
-            self.update_label()
+        """Open property editor dialog"""
+        dialog = PropertyEditor(self.node)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Get the updated properties
+            updated_properties = dialog.get_properties()
             
-            # Trigger timeline sync for Event entities
-            if isinstance(self.node, Event):
-                view = self.scene().views()[0]
-                if hasattr(view, 'sync_event_to_timeline'):
-                    view.sync_event_to_timeline(self.node)
+            # Update the node's properties
+            for key, value in updated_properties.items():
+                self.node.properties[key] = value
+            
+            # Update the node's label
+            self.node.update_label()
+            
+            # Update visual representation
+            self._update_layout()
+            
+            # Notify graph manager of the update
+            scene = self.scene()
+            if scene and hasattr(scene.views()[0], 'graph_manager'):
+                graph_manager = scene.views()[0].graph_manager
+                graph_manager.update_node(self.node.id, self.node)
+                
+            # Load image if available
+            image_path = self.node.properties.get("image")
+            if image_path:
+                if image_path.startswith(("http://", "https://")):
+                    self._load_remote_image(image_path)
+                else:
+                    self._load_local_image(image_path)
 
     def _delete_node(self):
         """Delete this node"""
