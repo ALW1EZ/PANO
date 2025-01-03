@@ -38,14 +38,14 @@ class TimelineStyle:
             color: #ffffff;
         }
         QPushButton {
-            background-color: #0078d4;
+            background-color: #3d3d3d;
             border: none;
             padding: 8px;
             color: white;
             border-radius: 4px;
         }
         QPushButton:hover {
-            background-color: #1084d8;
+            background-color: #3d3d3d;
         }
         QScrollArea {
             border: none;

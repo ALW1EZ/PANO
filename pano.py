@@ -21,6 +21,7 @@ from qasync import QEventLoop, asyncSlot
 from ui.managers.layout_manager import LayoutManager
 from ui.managers.timeline_manager import TimelineManager
 import aiofiles
+from ui.components.map_visual import MapVisual
 
 from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
 import asyncio
@@ -120,9 +121,27 @@ class MainWindow(QMainWindow):
         # Set application style
         self.setStyleSheet(self._get_stylesheet())
         
+        # Create central widget with splitter
+        central_widget = QWidget()
+        central_layout = QVBoxLayout(central_widget)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create vertical splitter
+        self.vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+        
         # Create the graph view
         self.graph_view = GraphView()
-        self.setCentralWidget(self.graph_view)
+        self.vertical_splitter.addWidget(self.graph_view)
+        
+        # Create map widget
+        self.map_widget = MapVisual()
+        self.vertical_splitter.addWidget(self.map_widget)
+        
+        # Set initial sizes (70% graph, 30% map)
+        self.vertical_splitter.setSizes([1000, 0])
+        
+        central_layout.addWidget(self.vertical_splitter)
+        self.setCentralWidget(central_widget)
         
         # Create left dock widget with entities and transforms
         self.setup_left_dock()

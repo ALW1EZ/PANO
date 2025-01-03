@@ -23,7 +23,7 @@ if [ -f "requirements.txt" ]; then
     pip install -r requirements.txt
 else
     echo -e "${BLUE}Installing required packages...${NC}"
-    pip install PyQt6 networkx qasync scipy
+    pip install PyQt6 networkx qasync scipy folium aiofiles PyQt6-WebEngine
 fi
 
 # Start PANO

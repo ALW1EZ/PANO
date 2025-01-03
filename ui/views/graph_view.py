@@ -271,6 +271,3 @@ class GraphView(QGraphicsView):
             self.sync_event_to_timeline(entity)
         
         return node
-
-    # ... [Rest of the GraphView implementation from graph_manager.py]
-    # Note: Include all the methods from the original GraphView class 
