@@ -33,7 +33,7 @@ class Phone(Entity):
     def update_label(self):
         """Update the label based on phone number"""
         if "country_code" in self.properties:
-            self.properties["_display_number"] = f"+{self.properties['country_code']}{self.properties['number']}"
+            self.properties["_display_number"] = f"+{self.properties['country_code']} {self.properties['number']}"
         else:
             self.properties["_display_number"] = self.properties.get("number", "")
         self.label = self.format_label(["_display_number"])
@@ -61,5 +61,5 @@ class Phone(Entity):
     def get_main_display(self) -> str:
         """Get the main text to display for this phone number"""
         if "country_code" in self.properties and "number" in self.properties:
-            return f"+{self.country_code}{self.number}"
+            return f"+{self.country_code} {self.number}"
         return self.number or "Phone" 
