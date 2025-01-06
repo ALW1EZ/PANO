@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout,
                              QLineEdit, QLabel, QHBoxLayout, QDialogButtonBox,
-                             QPushButton, QDateTimeEdit, QCheckBox)
+                             QPushButton, QDateTimeEdit, QCheckBox, QTextEdit)
 from PyQt6.QtCore import Qt, QDateTime
 from PyQt6.QtGui import QIcon
 from typing import Dict, Any, Optional
@@ -17,7 +17,7 @@ class PropertyEditor(QDialog):
     
     def _setup_ui(self):
         """Setup the dialog UI"""
-        self.setWindowTitle(f"Edit {self.entity.type_label} Properties")
+        self.setWindowTitle(f"Edit {self.entity.type_label.lower()} Properties")
         layout = QVBoxLayout(self)
         
         # Create input fields for each property
@@ -66,6 +66,22 @@ class PropertyEditor(QDialog):
                 
                 date_container.addWidget(input_field)
                 row.addLayout(date_container)
+            elif prop_name == 'notes':
+                input_field = QTextEdit()
+                input_field.setFixedHeight(100)
+                input_field.setStyleSheet("""
+                    QTextEdit {
+                        background-color: #1E1E1E;
+                        color: #CCCCCC;
+                        border: 1px solid #3F3F46;
+                        padding: 5px;
+                        border-radius: 2px;
+                    }
+                """)
+                # Set initial text value
+                current_value = str(self.entity.properties.get(prop_name, ""))
+                input_field.setPlainText(current_value)
+                row.addWidget(input_field)
             else:
                 input_field = QLineEdit()
                 current_value = str(self.entity.properties.get(prop_name, ""))
@@ -110,6 +126,7 @@ class PropertyEditor(QDialog):
                         selection-background-color: #007ACC;
                     }
                 """)
+            
             layout.addLayout(row)
         
         # Add buttons
@@ -175,6 +192,8 @@ class PropertyEditor(QDialog):
                         value = None
                 else:
                     value = None
+            elif prop_name == 'notes':
+                value = input_field.toPlainText()
             else:
                 value = input_field.text().strip()
             values[prop_name] = value

@@ -95,7 +95,7 @@ class NodeVisual(QGraphicsObject):
         # Main label (larger, centered)
         self.label = QGraphicsTextItem(self)
         self.label.setDefaultTextColor(self.style.label_color)
-        font = QFont("Geist Mono", 11)
+        font = QFont("Geist Mono", 12)
         self.label.setFont(font)
         
         # Properties text
@@ -132,9 +132,9 @@ class NodeVisual(QGraphicsObject):
         # Update properties
         prop_text = []
         for key, value in self.node.get_display_properties().items():
-            if len(str(value)) > 30:
-                value = str(value)[:27] + "..."
-            prop_text.append(f"{key}: {value}")
+            if key == 'notes':
+                value = f"\n{value}"
+            prop_text.append(f"{key.upper()}: {value}")
         self.properties_item.setPlainText("\n".join(prop_text))
         
         # Calculate text dimensions
