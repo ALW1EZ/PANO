@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QPointF, QRectF, QPropertyAnimation, QEasingCurve, QAbstractAnimation, QLineF
 from PyQt6.QtGui import (
     QPainter, QPixmap, QColor, QPen, QBrush, QPainterPath, QLinearGradient,
-    QPolygonF
+    QPolygonF, QFont
 )
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -88,23 +88,20 @@ class NodeVisual(QGraphicsObject):
         # Type label (small, above)
         self.type_label = QGraphicsTextItem(self)
         self.type_label.setDefaultTextColor(self.style.property_color)
-        font = self.type_label.font()
-        font.setPointSize(7)
+        font = QFont("Geist Mono", 9)
         self.type_label.setFont(font)
         self.type_label.setPlainText(self.node.type_label)
         
         # Main label (larger, centered)
         self.label = QGraphicsTextItem(self)
         self.label.setDefaultTextColor(self.style.label_color)
-        font = self.label.font()
-        font.setPointSize(9)
+        font = QFont("Geist Mono", 11)
         self.label.setFont(font)
         
         # Properties text
         self.properties_item = QGraphicsTextItem(self)
         self.properties_item.setDefaultTextColor(self.style.property_color)
-        font = self.properties_item.font()
-        font.setPointSize(7)
+        font = QFont("Geist Mono", 9)
         self.properties_item.setFont(font)
         
         # Image

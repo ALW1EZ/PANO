@@ -8,34 +8,25 @@ class TimelineStyle:
     EVENT_FILL_COLOR = QColor("#2d2d2d")
     DEFAULT_EVENT_COLOR = QColor("#0078d4")
     
-    # Dimensions
-    LEFT_MARGIN = 90
+    # Timeline dimensions
+    LEFT_MARGIN = 145
     TOP_MARGIN = 50
     BOX_WIDTH = 250
-    COLUMN_SPACING = 10
-    CONNECTOR_LENGTH = 30
-    MIN_LABEL_SPACING = 25
+    EVENT_SPACING = 50
+    BOX_HEIGHT = 100
     CONTENT_MARGIN = 10
-    TITLE_HEIGHT = 30
-    DESC_MIN_HEIGHT = 25
-    DURATION_HEIGHT = 25
     
     # Widget dimensions
-    MINIMUM_DOCK_WIDTH = 400
-    PREFERRED_DOCK_WIDTH = 800
-    
-    # Zoom settings
-    MIN_PIXELS_PER_HOUR = 0.1
-    MAX_PIXELS_PER_HOUR = 7200
-    ZOOM_IN_FACTOR = 1.1
-    ZOOM_OUT_FACTOR = 0.9
-    BASE_PIXELS_PER_HOUR = 20
+    MINIMUM_DOCK_WIDTH = 420
+    PREFERRED_DOCK_WIDTH = 320
 
     # Style sheets
     MAIN_STYLE = """
         QMainWindow, QWidget {
             background-color: #1e1e1e;
             color: #ffffff;
+            font-family: "Geist Mono";
+            font-size: 12px;
         }
         QPushButton {
             background-color: #3d3d3d;
@@ -43,9 +34,11 @@ class TimelineStyle:
             padding: 8px;
             color: white;
             border-radius: 4px;
+            font-family: "Geist Mono";
+            font-size: 12px;
         }
         QPushButton:hover {
-            background-color: #3d3d3d;
+            background-color: #4d4d4d;
         }
         QScrollArea {
             border: none;
@@ -56,9 +49,13 @@ class TimelineStyle:
         QDialog {
             background-color: #1e1e1e;
             color: white;
+            font-family: "Geist Mono";
+            font-size: 12px;
         }
         QLabel {
             color: white;
+            font-family: "Geist Mono";
+            font-size: 12px;
         }
         QPushButton {
             background-color: #0078d4;
@@ -67,6 +64,8 @@ class TimelineStyle:
             padding: 5px;
             border-radius: 3px;
             margin: 2px;
+            font-family: "Geist Mono";
+            font-size: 12px;
         }
         QPushButton:hover {
             background-color: #1084d8;
@@ -83,6 +82,8 @@ class TimelineStyle:
             border: 1px solid #404040;
             padding: 5px;
             border-radius: 3px;
+            font-family: "Geist Mono";
+            font-size: 12px;
         }
     """
 

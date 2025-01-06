@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout,
                              QLineEdit, QLabel, QHBoxLayout, QDialogButtonBox,
-                             QPushButton, QDateTimeEdit)
+                             QPushButton, QDateTimeEdit, QCheckBox)
 from PyQt6.QtCore import Qt, QDateTime
 from PyQt6.QtGui import QIcon
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from entities import Entity
 from datetime import datetime
 
@@ -12,6 +12,7 @@ class PropertyEditor(QDialog):
         super().__init__(parent)
         self.entity = entity
         self.inputs = {}
+        self.date_checkboxes = {}
         self._setup_ui()
     
     def _setup_ui(self):
@@ -32,33 +33,49 @@ class PropertyEditor(QDialog):
             
             # Input field
             if prop_name in ['start_date', 'end_date']:
+                # Create a container for date controls
+                date_container = QHBoxLayout()
+                
+                # Add checkbox
+                checkbox = QCheckBox("Enable")
+                self.date_checkboxes[prop_name] = checkbox
+                date_container.addWidget(checkbox)
+                
+                # Create date input
                 input_field = QDateTimeEdit()
                 input_field.setCalendarPopup(True)
                 input_field.setDisplayFormat("yyyy-MM-dd HH:mm")
+                input_field.setEnabled(False)  # Disabled by default
                 
                 current_value = self.entity.properties.get(prop_name)
                 if current_value and isinstance(current_value, datetime):
                     input_field.setDateTime(QDateTime.fromString(current_value.strftime("%Y-%m-%d %H:%M"), "yyyy-MM-dd HH:mm"))
+                    checkbox.setChecked(True)
+                    input_field.setEnabled(True)
                 else:
                     input_field.setDateTime(QDateTime.currentDateTime())
+                    checkbox.setChecked(False)
+                
+                # Connect checkbox to enable/disable date field
+                checkbox.stateChanged.connect(lambda state, field=input_field: field.setEnabled(state == Qt.CheckState.Checked))
                 
                 # Set seconds to 00
                 current_dt = input_field.dateTime()
                 current_dt.setTime(current_dt.time().addSecs(-current_dt.time().second()))
                 input_field.setDateTime(current_dt)
+                
+                date_container.addWidget(input_field)
+                row.addLayout(date_container)
             else:
                 input_field = QLineEdit()
                 current_value = str(self.entity.properties.get(prop_name, ""))
                 input_field.setText(current_value)
+                row.addWidget(input_field)
             
             self.inputs[prop_name] = input_field
-            row.addWidget(input_field)
             
-            # Remove date picker button for date fields since QDateTimeEdit has built-in calendar
-            if prop_name not in ['start_date', 'end_date']:
-                layout.addLayout(row)
-            else:
-                # Add custom styling for QDateTimeEdit
+            # Add custom styling for QDateTimeEdit
+            if prop_name in ['start_date', 'end_date']:
                 input_field.setStyleSheet("""
                     QDateTimeEdit {
                         background-color: #1E1E1E;
@@ -93,7 +110,7 @@ class PropertyEditor(QDialog):
                         selection-background-color: #007ACC;
                     }
                 """)
-                layout.addLayout(row)
+            layout.addLayout(row)
         
         # Add buttons
         buttons = QDialogButtonBox(
@@ -109,9 +126,13 @@ class PropertyEditor(QDialog):
             QDialog {
                 background-color: #2D2D30;
                 color: #CCCCCC;
+                font-family: "Geist Mono";
+                font-size: 12px;
             }
             QLabel {
                 color: #CCCCCC;
+                font-family: "Geist Mono";
+                font-size: 12px;
             }
             QLineEdit {
                 background-color: #1E1E1E;
@@ -119,6 +140,8 @@ class PropertyEditor(QDialog):
                 border: 1px solid #3F3F46;
                 padding: 5px;
                 border-radius: 2px;
+                font-family: "Geist Mono";
+                font-size: 12px;
             }
             QPushButton {
                 background-color: #007ACC;
@@ -126,13 +149,14 @@ class PropertyEditor(QDialog):
                 border: none;
                 padding: 5px 15px;
                 border-radius: 2px;
+                font-family: "Geist Mono";
+                font-size: 12px;
             }
-            QPushButton[text="📅"] {
-                background-color: transparent;
+            QPushButton[text="S"] {
                 border: 1px solid #3F3F46;
                 padding: 2px;
             }
-            QPushButton[text="📅"]:hover {
+            QPushButton[text="S"]:hover {
                 background-color: #3F3F46;
             }
         """)
@@ -143,8 +167,12 @@ class PropertyEditor(QDialog):
         for prop_name, input_field in self.inputs.items():
             if prop_name in ['start_date', 'end_date']:
                 if isinstance(input_field, QDateTimeEdit):
-                    dt = input_field.dateTime().toPyDateTime()
-                    value = dt.replace(second=0)
+                    # Only include date if checkbox is checked
+                    if self.date_checkboxes[prop_name].isChecked():
+                        dt = input_field.dateTime().toPyDateTime()
+                        value = dt.replace(second=0)
+                    else:
+                        value = None
                 else:
                     value = None
             else:

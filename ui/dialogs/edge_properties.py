@@ -73,9 +73,13 @@ class EdgePropertiesDialog(QDialog):
             QDialog {
                 background-color: #2D2D30;
                 color: #CCCCCC;
+                font-family: "Geist Mono";
+                font-size: 12px;
             }
             QLabel {
                 color: #CCCCCC;
+                font-family: "Geist Mono";
+                font-size: 12px;
             }
             QLineEdit {
                 background-color: #1E1E1E;
@@ -83,6 +87,8 @@ class EdgePropertiesDialog(QDialog):
                 border: 1px solid #3F3F46;
                 padding: 5px;
                 border-radius: 2px;
+                font-family: "Geist Mono";
+                font-size: 12px;
             }
             QComboBox {
                 background-color: #1E1E1E;
@@ -90,6 +96,8 @@ class EdgePropertiesDialog(QDialog):
                 border: 1px solid #3F3F46;
                 padding: 5px;
                 border-radius: 2px;
+                font-family: "Geist Mono";
+                font-size: 12px;
             }
             QComboBox::drop-down {
                 border: none;

@@ -5,7 +5,7 @@ from entities import Entity, ENTITY_TYPES
 @dataclass
 class NodeStyle:
     """Style configuration for nodes"""
-    min_width: float = 200
+    min_width: float = 210
     min_height: float = 64
     radius: float = 8
     normal_color: QColor = field(default_factory=lambda: QColor(45, 45, 48))
