@@ -11,14 +11,14 @@ class TimelineStyle:
     # Timeline dimensions
     LEFT_MARGIN = 145
     TOP_MARGIN = 50
-    BOX_WIDTH = 250
+    BOX_WIDTH = 270
     EVENT_SPACING = 50
     BOX_HEIGHT = 100
     CONTENT_MARGIN = 10
     
     # Widget dimensions
-    MINIMUM_DOCK_WIDTH = 420
-    PREFERRED_DOCK_WIDTH = 320
+    MINIMUM_DOCK_WIDTH = 450
+    PREFERRED_DOCK_WIDTH = 350
 
     # Style sheets
     MAIN_STYLE = """

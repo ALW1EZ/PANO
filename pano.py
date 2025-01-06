@@ -22,6 +22,7 @@ from ui.managers.layout_manager import LayoutManager
 from ui.managers.timeline_manager import TimelineManager
 import aiofiles
 from ui.components.map_visual import MapVisual
+from ui.components.timeline_visual import TimelineVisual, TimelineEvent
 
 from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
 import asyncio
@@ -44,6 +45,7 @@ from typing import Optional, Dict, Any
 from qasync import QEventLoop, asyncSlot
 from ui.managers.layout_manager import LayoutManager
 from ui.managers.map_manager import MapManager
+from ui.components.timeline_visual import TimelineEvent
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -436,11 +438,25 @@ class MainWindow(QMainWindow):
                 
                 edges_data.append(edge_data)
 
+            # Save timeline events
+            timeline_events = []
+            timeline_visual = self.timeline_manager.timeline_dock.findChild(TimelineVisual)
+            if timeline_visual:
+                for event in timeline_visual.events:
+                    event_data = {
+                        'title': event.title,
+                        'description': event.description,
+                        'start_time': event.start_time.isoformat(),
+                        'end_time': event.end_time.isoformat(),
+                        'color': event.color.name()
+                    }
+                    timeline_events.append(event_data)
+
             # Create investigation data
             investigation_data = {
                 'nodes': nodes_data,
                 'edges': edges_data,
-                'timeline_events': self.timeline_manager.serialize_events()
+                'timeline_events': timeline_events
             }
 
             # Save to file
@@ -473,7 +489,10 @@ class MainWindow(QMainWindow):
 
             # Clear existing graph
             self.graph_view.graph_manager.clear()
-            self.timeline_manager.clear_events()
+            timeline_visual = self.timeline_manager.timeline_dock.findChild(TimelineVisual)
+            if timeline_visual:
+                timeline_visual.events.clear()
+                timeline_visual.update()
 
             # Load nodes
             nodes = {}
@@ -514,8 +533,16 @@ class MainWindow(QMainWindow):
                     edge.properties = edge_data['properties']
 
             # Load timeline events
-            if 'timeline_events' in investigation_data:
-                self.timeline_manager.deserialize_events(investigation_data['timeline_events'])
+            if 'timeline_events' in investigation_data and timeline_visual:
+                for event_data in investigation_data['timeline_events']:
+                    event = TimelineEvent(
+                        title=event_data['title'],
+                        description=event_data['description'],
+                        start_time=datetime.fromisoformat(event_data['start_time']),
+                        end_time=datetime.fromisoformat(event_data['end_time']),
+                        color=QColor(event_data['color'])
+                    )
+                    timeline_visual.add_event(event)
 
             self.current_file = file_name
             self.statusBar().showMessage(f"Investigation loaded from {file_name}", 3000)
@@ -529,7 +556,10 @@ class MainWindow(QMainWindow):
         """Create a new investigation"""
         if QMessageBox.question(self, "Clear Investigation", "Are you sure you want to clear the current investigation?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
             self.graph_view.graph_manager.clear()
-            self.timeline_manager.clear_events()
+            timeline_visual = self.timeline_manager.timeline_dock.findChild(TimelineVisual)
+            if timeline_visual:
+                timeline_visual.events.clear()
+                timeline_visual.update()
             self.current_file = None
             self.statusBar().showMessage("New investigation created", 3000)
             logger.info("New investigation created")

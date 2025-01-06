@@ -45,7 +45,7 @@ class PropertyEditor(QDialog):
                 input_field = QDateTimeEdit()
                 input_field.setCalendarPopup(True)
                 input_field.setDisplayFormat("yyyy-MM-dd HH:mm")
-                input_field.setEnabled(False)  # Disabled by default
+                input_field.setEnabled(True)  # Disabled by default
                 
                 current_value = self.entity.properties.get(prop_name)
                 if current_value and isinstance(current_value, datetime):

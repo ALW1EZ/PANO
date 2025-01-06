@@ -17,6 +17,9 @@ class TimelineVisual(QWidget):
         self.is_panning = False
         self.last_mouse_pos = None
         self.setMouseTracking(True)
+        
+        # Increase box height for better text wrapping
+        TimelineStyle.BOX_HEIGHT = 180  # Increased from default
 
     def add_event(self, event):
         """Add a new event to the timeline"""
@@ -36,6 +39,7 @@ class TimelineVisual(QWidget):
     def _format_relative_time(self, time_delta):
         """Format timedelta into a human-readable relative time string"""
         total_seconds = int(time_delta.total_seconds())
+        
         years = total_seconds // (365 * 24 * 3600)
         remaining = total_seconds % (365 * 24 * 3600)
         days = remaining // (24 * 3600)
@@ -56,28 +60,62 @@ class TimelineVisual(QWidget):
         
         return " ".join(parts) if parts else "0m"
 
-    def _draw_time_labels(self, painter, event, y_offset):
+    def _draw_time_labels(self, painter, event, y_offset, box_height):
         """Draw the time labels for an event"""
         painter.setFont(QFont("Geist Mono", 11))
         time_format = "%d/%m/%y %H:%M"
         
-        # Draw start time label
-        painter.drawText(
-            QRectF(10, y_offset, TimelineStyle.LEFT_MARGIN - 20, 20),
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            event.start_time.strftime(time_format)
-        )
+        # If start and end time are the same, show only one centered label
+        if event.start_time == event.end_time:
+            painter.drawText(
+                QRectF(10, y_offset + (box_height - 20) // 2, 
+                       TimelineStyle.LEFT_MARGIN - 20, 20),
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                event.end_time.strftime(time_format)
+            )
+        else:
+            # Draw start time label
+            painter.drawText(
+                QRectF(10, y_offset, TimelineStyle.LEFT_MARGIN - 20, 20),
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                event.start_time.strftime(time_format)
+            )
+            
+            # Draw end time label
+            painter.drawText(
+                QRectF(10, y_offset + box_height - 20, 
+                       TimelineStyle.LEFT_MARGIN - 20, 20),
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                event.end_time.strftime(time_format)
+            )
+
+    def _calculate_text_height(self, painter, text, width, font):
+        """Calculate required height for text with wrapping"""
+        metrics = painter.fontMetrics()
+        rect = QRectF(0, 0, width, 1000)  # Temporary tall rect
+        flags = Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap
         
-        # Draw end time label
-        painter.drawText(
-            QRectF(10, y_offset + TimelineStyle.BOX_HEIGHT - 20, 
-                   TimelineStyle.LEFT_MARGIN - 20, 20),
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            event.end_time.strftime(time_format)
-        )
+        # Create a temporary QStaticText for measurement
+        bounds = metrics.boundingRect(rect.toRect(), flags, text)
+        return bounds.height()
 
     def _draw_event_box(self, painter, event, y_offset, last_event):
         """Draw an event box and its contents"""
+        # Get the total height
+        total_height = self._calculate_box_height(painter, event)
+        
+        # Calculate required heights for content
+        title_font = QFont("Geist Mono", 13)
+        title_font.setBold(True)
+        description_font = QFont("Geist Mono", 11)
+        content_width = TimelineStyle.BOX_WIDTH - 2*TimelineStyle.CONTENT_MARGIN
+        
+        painter.setFont(title_font)
+        title_height = self._calculate_text_height(painter, event.title, content_width, title_font)
+        
+        painter.setFont(description_font)
+        description_height = self._calculate_text_height(painter, event.description, content_width, description_font)
+        
         # Draw vertical connector from previous event
         if last_event:
             center_x = TimelineStyle.LEFT_MARGIN + TimelineStyle.BOX_WIDTH // 2
@@ -86,77 +124,113 @@ class TimelineVisual(QWidget):
             end_y = y_offset
             painter.drawLine(center_x, start_y, center_x, end_y)
             
-            # Draw relative time difference
-            time_diff = event.start_time - last_event.start_time
+            # Draw relative time difference centered on the line
+            time_diff = event.start_time - last_event.end_time
             diff_text = self._format_relative_time(time_diff)
             if last_event.title and "after" not in diff_text:
-                diff_text += f" after \"{last_event.title}\""
+                diff_text = f"after {diff_text}"
             
             painter.setPen(QPen(TimelineStyle.TEXT_COLOR))
             painter.setFont(QFont("Geist Mono", 11))
-            text_rect = QRectF(center_x + 10, start_y + (end_y - start_y) // 2 - 10,
-                             300, 20)
-            painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                           diff_text)
+            
+            # Calculate text width and create centered rect
+            text_width = min(TimelineStyle.BOX_WIDTH - 20, 300)  # Limit width
+            text_rect = QRectF(center_x - text_width/2,
+                              start_y + (end_y - start_y)/2 - 20,
+                              text_width, 40)
+            
+            # Draw text with wrapping
+            painter.drawText(text_rect,
+                            Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                            diff_text)
         
         # Draw event box
         box_x = TimelineStyle.LEFT_MARGIN
         painter.setPen(QPen(event.color, 2))
         painter.setBrush(QBrush(TimelineStyle.EVENT_FILL_COLOR))
-        box_rect = QRectF(box_x, y_offset, TimelineStyle.BOX_WIDTH, TimelineStyle.BOX_HEIGHT)
+        box_rect = QRectF(box_x, y_offset, TimelineStyle.BOX_WIDTH, total_height)
         painter.drawRoundedRect(box_rect, 10, 10)
         
-        # Draw title and description
+        # Draw title
         painter.setPen(QPen(TimelineStyle.TEXT_COLOR))
-        title_font = QFont("Geist Mono", 13)
-        title_font.setBold(True)
-        description_font = QFont("Geist Mono", 11)
         painter.setFont(title_font)
         title_rect = QRectF(box_x + TimelineStyle.CONTENT_MARGIN, 
                            y_offset + TimelineStyle.CONTENT_MARGIN,
-                           TimelineStyle.BOX_WIDTH - 2*TimelineStyle.CONTENT_MARGIN, 25)
-        painter.drawText(title_rect, Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter,
+                           content_width,
+                           title_height)
+        painter.drawText(title_rect,
+                        Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap,
                         event.title)
+        
+        # Draw description
         painter.setFont(description_font)
         description_rect = QRectF(box_x + TimelineStyle.CONTENT_MARGIN, 
-                                 y_offset + TimelineStyle.CONTENT_MARGIN + 25,
-                                 TimelineStyle.BOX_WIDTH - 2*TimelineStyle.CONTENT_MARGIN, 25)
-        painter.drawText(description_rect, Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter,
+                                 y_offset + TimelineStyle.CONTENT_MARGIN * 2 + title_height,
+                                 content_width,
+                                 description_height)
+        painter.drawText(description_rect,
+                        Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap,
                         event.description)
         
         # Draw times
         painter.setFont(QFont("Geist Mono", 11))
-        time_width = 70
+        time_width = 116
         
-        # Start time at right-top
-        start_time_text = event.start_time.strftime("%H:%M")
-        painter.drawText(
-            QRectF(box_x + TimelineStyle.BOX_WIDTH - time_width - TimelineStyle.CONTENT_MARGIN,
-                   y_offset + TimelineStyle.CONTENT_MARGIN,
-                   time_width, 20),
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            start_time_text
-        )
+        # Calculate duration
+        duration = event.end_time - event.start_time
+        duration_text = self._format_relative_time(duration)
         
-        # End time at right-bottom
-        end_time_text = event.end_time.strftime("%H:%M")
-        painter.drawText(
-            QRectF(box_x + TimelineStyle.BOX_WIDTH - time_width - TimelineStyle.CONTENT_MARGIN,
-                   y_offset + TimelineStyle.BOX_HEIGHT - TimelineStyle.CONTENT_MARGIN - 20,
-                   time_width, 20),
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            end_time_text
-        )
+        if duration_text == "0m":
+            # For 0m duration, show single centered time
+            time_text = event.start_time.strftime("%H:%M")
+            painter.drawText(
+                QRectF(box_x + TimelineStyle.CONTENT_MARGIN,
+                       y_offset + total_height - TimelineStyle.CONTENT_MARGIN - 20,
+                       TimelineStyle.BOX_WIDTH - 2*TimelineStyle.CONTENT_MARGIN, 20),
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter,
+                time_text
+            )
+        else:
+            # Show start-end time and duration for non-zero durations
+            start_time_text = event.start_time.strftime("%H:%M")
+            end_time_text = event.end_time.strftime("%H:%M")
+            painter.drawText(
+                QRectF(box_x + TimelineStyle.BOX_WIDTH - time_width - TimelineStyle.CONTENT_MARGIN,
+                       y_offset + total_height - TimelineStyle.CONTENT_MARGIN - 20,
+                       time_width, 20),
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                f"{start_time_text} - {end_time_text}"
+            )
+            
+            painter.drawText(
+                QRectF(box_x + TimelineStyle.CONTENT_MARGIN,
+                       y_offset + total_height - TimelineStyle.CONTENT_MARGIN - 20,
+                       TimelineStyle.BOX_WIDTH - 2*TimelineStyle.CONTENT_MARGIN - time_width, 20),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                duration_text
+            )
         
-        # Duration at left-bottom
-        duration_text = self._format_relative_time(event.end_time - event.start_time)
-        painter.drawText(
-            QRectF(box_x + TimelineStyle.CONTENT_MARGIN,
-                   y_offset + TimelineStyle.BOX_HEIGHT - TimelineStyle.CONTENT_MARGIN - 20,
-                   TimelineStyle.BOX_WIDTH - 2*TimelineStyle.CONTENT_MARGIN - time_width, 20),
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            duration_text
-        )
+        return total_height
+
+    def _calculate_box_height(self, painter, event):
+        """Calculate the total height of an event box"""
+        # Calculate required heights
+        title_font = QFont("Geist Mono", 13)
+        title_font.setBold(True)
+        description_font = QFont("Geist Mono", 11)
+        
+        content_width = TimelineStyle.BOX_WIDTH - 2*TimelineStyle.CONTENT_MARGIN
+        
+        # Set fonts to calculate heights
+        painter.setFont(title_font)
+        title_height = self._calculate_text_height(painter, event.title, content_width, title_font)
+        
+        painter.setFont(description_font)
+        description_height = self._calculate_text_height(painter, event.description, content_width, description_font)
+        
+        # Calculate total box height
+        return (TimelineStyle.CONTENT_MARGIN * 3 +  # Top margin + spacing between title/desc + bottom margin
+                title_height + description_height + 30)  # Add 30px for time labels at bottom
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -173,21 +247,20 @@ class TimelineVisual(QWidget):
         
         for current_event in self.events:
             painter.setPen(QPen(TimelineStyle.TEXT_COLOR))
-            self._draw_time_labels(painter, current_event, y_offset)
-            self._draw_event_box(painter, current_event, y_offset, last_event)
+            box_height = self._draw_event_box(painter, current_event, y_offset, last_event)
+            self._draw_time_labels(painter, current_event, y_offset, box_height)
             
-            y_offset += TimelineStyle.BOX_HEIGHT + TimelineStyle.EVENT_SPACING
+            y_offset += box_height + TimelineStyle.EVENT_SPACING
             last_event = current_event
             
         # Update widget height to fit all events
         self.setMinimumHeight(y_offset + TimelineStyle.TOP_MARGIN)
 
     def wheelEvent(self, event):
-        if event.angleDelta().y() > 0:
-            self.offset_y = max(0, self.offset_y - 30)
-        else:
-            max_offset = max(0, self.minimumHeight() - self.height())
-            self.offset_y = min(max_offset, self.offset_y + 30)
+        scroll_amount = event.angleDelta().y() / 120 * 30  # Normalize scroll amount
+        new_offset = self.offset_y - scroll_amount
+        max_offset = max(0, self.minimumHeight() - self.height())
+        self.offset_y = max(0, min(max_offset, new_offset))
         self.update()
 
     def mousePressEvent(self, event):
@@ -222,37 +295,50 @@ class TimelineVisual(QWidget):
         # Calculate y position relative to scroll offset
         adjusted_y = pos.y() + self.offset_y
         
-        # Calculate which event box the click is in
-        y_position = adjusted_y - TimelineStyle.TOP_MARGIN
-        event_index = int(y_position / (TimelineStyle.BOX_HEIGHT + TimelineStyle.EVENT_SPACING))
-        
-        if event_index < 0 or event_index >= len(self.events):
-            return None
-            
         # Check if click is within the box horizontally
         box_x = TimelineStyle.LEFT_MARGIN
         if pos.x() < box_x or pos.x() > box_x + TimelineStyle.BOX_WIDTH:
             return None
-            
-        # Check if click is within the box vertically
-        box_start_y = TimelineStyle.TOP_MARGIN + event_index * (TimelineStyle.BOX_HEIGHT + TimelineStyle.EVENT_SPACING) - self.offset_y
-        if pos.y() < box_start_y or pos.y() > box_start_y + TimelineStyle.BOX_HEIGHT:
-            return None
-            
-        return self.events[event_index]
+        
+        # Calculate cumulative height to find the clicked event
+        current_y = TimelineStyle.TOP_MARGIN
+        painter = QPainter(self)
+        painter.begin(self)
+        
+        try:
+            for event in self.events:
+                # Calculate box height for current event
+                box_height = self._calculate_box_height(painter, event)
+                
+                # Check if click is within this box's vertical bounds
+                if current_y <= adjusted_y <= current_y + box_height:
+                    return event
+                
+                current_y += box_height + TimelineStyle.EVENT_SPACING
+        finally:
+            painter.end()
+        
+        return None
 
     def show_edit_dialog(self, event):
         """Show dialog to edit an event"""
         dialog = EditEventDialog(self, event)
         result = dialog.exec()
         if result == QDialog.DialogCode.Accepted:
+            # Store the event index before modification
+            event_index = self.events.index(event)
+            
+            # Update the event
             event.title = dialog.title_edit.text()
             event.description = dialog.description_edit.text()
             event.start_time = dialog.start_time_edit.dateTime().toPyDateTime()
             event.end_time = dialog.end_time_edit.dateTime().toPyDateTime()
             event.color = dialog.selected_color
             
-            self.events.sort(key=lambda x: x.start_time)
+            # Remove and reinsert to trigger proper sorting
+            self.events.pop(event_index)
+            self.events.append(event)
+            self.events.sort(key=lambda x: x.end_time)
             self.update()
         elif result == QDialog.DialogCode.Rejected:
             self.delete_event(event)
