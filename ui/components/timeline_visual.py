@@ -91,6 +91,7 @@ class TimelineVisual(QWidget):
 
     def _calculate_text_height(self, painter, text, width, font):
         """Calculate required height for text with wrapping"""
+        painter.setFont(font)
         metrics = painter.fontMetrics()
         rect = QRectF(0, 0, width, 1000)  # Temporary tall rect
         flags = Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap
@@ -302,21 +303,28 @@ class TimelineVisual(QWidget):
         
         # Calculate cumulative height to find the clicked event
         current_y = TimelineStyle.TOP_MARGIN
-        painter = QPainter(self)
-        painter.begin(self)
         
-        try:
-            for event in self.events:
-                # Calculate box height for current event
-                box_height = self._calculate_box_height(painter, event)
-                
-                # Check if click is within this box's vertical bounds
-                if current_y <= adjusted_y <= current_y + box_height:
-                    return event
-                
-                current_y += box_height + TimelineStyle.EVENT_SPACING
-        finally:
-            painter.end()
+        # Use a fixed height estimation for each line of text
+        line_height = 20  # Approximate height per line
+        
+        for event in self.events:
+            # Estimate title height (1-2 lines)
+            title_lines = len(event.title) // 40 + 1  # Rough estimate of lines needed
+            title_height = title_lines * line_height
+            
+            # Estimate description height
+            desc_lines = len(event.description) // 40 + 1  # Rough estimate of lines needed
+            desc_height = desc_lines * line_height
+            
+            # Calculate total box height
+            box_height = (TimelineStyle.CONTENT_MARGIN * 3 +  # Margins
+                         title_height + desc_height + 30)     # Content + time labels
+            
+            # Check if click is within this box's vertical bounds
+            if current_y <= adjusted_y <= current_y + box_height:
+                return event
+            
+            current_y += box_height + TimelineStyle.EVENT_SPACING
         
         return None
 
