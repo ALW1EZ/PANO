@@ -1,8 +1,8 @@
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QDialogButtonBox, QComboBox
 )
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 class EdgePropertiesDialog(QDialog):
     def __init__(self, edge, parent=None):

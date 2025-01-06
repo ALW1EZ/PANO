@@ -1,8 +1,8 @@
 from typing import Dict, Any
 import asyncio
 import logging
-from PyQt6.QtCore import QPointF, Qt
-from PyQt6.QtGui import QColor
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QColor
 
 from entities import Entity
 from entities.event import Event

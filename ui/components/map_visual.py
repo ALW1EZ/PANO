@@ -1,7 +1,7 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMenu
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtCore import QUrl, pyqtSlot, QPoint, Qt
-from PyQt6.QtGui import QAction
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QMenu
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtCore import QUrl, Slot, QPoint, Qt
+from PySide6.QtGui import QAction
 import folium
 from folium.plugins import Draw, MeasureControl, MousePosition
 import tempfile
@@ -93,7 +93,7 @@ class MapVisual(QWidget):
         self.web_view.page().runJavaScript(js_code, self._handle_context_menu_creation(position))
     
     def _handle_context_menu_creation(self, position: QPoint):
-        @pyqtSlot(object)
+        @Slot()
         def callback(coords):
             if not coords:
                 return
@@ -121,7 +121,7 @@ class MapVisual(QWidget):
         return callback
         
     def _copy_coordinates(self, coords):
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         text = f"{coords[0]:.6f}, {coords[1]:.6f}"
         QApplication.clipboard().setText(text)
     

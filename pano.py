@@ -3,13 +3,13 @@ import sys
 import os
 import json
 import math
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication, QMainWindow, QGraphicsScene, QToolBar,
     QLineEdit, QMessageBox, QFileDialog, QListWidget, QLabel,
     QSplitter, QListWidgetItem, QDockWidget, QVBoxLayout, QWidget
 )
-from PyQt6.QtCore import Qt, QPointF, QMimeData, QSize
-from PyQt6.QtGui import QAction, QDrag, QIcon, QColor
+from PySide6.QtCore import Qt, QPointF, QMimeData, QSize
+from PySide6.QtGui import QAction, QDrag, QIcon, QColor
 import networkx as nx
 from ui.views.graph_view import GraphView, NodeVisual
 from entities import ENTITY_TYPES, load_entities
@@ -26,13 +26,13 @@ from ui.components.timeline_visual import TimelineVisual, TimelineEvent
 
 from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
 import asyncio
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication, QMainWindow, QDockWidget, QVBoxLayout, QWidget, QToolBar,
     QLineEdit, QMessageBox, QListWidget, QLabel, 
     QSplitter, QListWidgetItem, QFileDialog
 )
-from PyQt6.QtCore import Qt, QPointF, QMimeData, QSize
-from PyQt6.QtGui import QAction, QDrag, QIcon
+from PySide6.QtCore import Qt, QPointF, QMimeData, QSize
+from PySide6.QtGui import QAction, QDrag, QIcon
 import networkx as nx
 from ui.views.graph_view import GraphView, NodeVisual
 from entities import ENTITY_TYPES, load_entities

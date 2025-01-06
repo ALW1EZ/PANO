@@ -1,10 +1,10 @@
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QGraphicsItem, QGraphicsTextItem, QGraphicsObject,
     QGraphicsPixmapItem, QMenu, QMessageBox, QDialog, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QDialogButtonBox, QGraphicsLineItem
 )
-from PyQt6.QtCore import Qt, QPointF, QRectF, QPropertyAnimation, QEasingCurve, QAbstractAnimation, QLineF
-from PyQt6.QtGui import (
+from PySide6.QtCore import Qt, QPointF, QRectF, QPropertyAnimation, QEasingCurve, QAbstractAnimation, QLineF
+from PySide6.QtGui import (
     QPainter, QPixmap, QColor, QPen, QBrush, QPainterPath, QLinearGradient,
     QPolygonF, QFont
 )

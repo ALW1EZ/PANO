@@ -1,5 +1,5 @@
 import networkx as nx
-from PyQt6.QtCore import QPointF
+from PySide6.QtCore import QPointF
 from ..components.node_visual import NodeVisual
 from ..components.edge_visual import EdgeVisual
 import math

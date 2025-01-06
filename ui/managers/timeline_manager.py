@@ -1,5 +1,5 @@
-from PyQt6.QtWidgets import QDockWidget, QWidget, QVBoxLayout, QPushButton, QScrollArea
-from PyQt6.QtCore import Qt, QSize
+from PySide6.QtWidgets import QDockWidget, QWidget, QVBoxLayout, QPushButton, QScrollArea
+from PySide6.QtCore import Qt, QSize
 
 from ..components.timeline_visual import TimelineVisual
 from ..dialogs.timeline_editor import TimelineEvent, AddEventDialog
@@ -54,8 +54,8 @@ class TimelineManager:
             event = TimelineEvent(
                 dialog.title_edit.text(),
                 dialog.description_edit.text(),
-                dialog.start_time_edit.dateTime().toPyDateTime(),
-                dialog.end_time_edit.dateTime().toPyDateTime(),
+                dialog.start_time_edit.dateTime().toPython(),
+                dialog.end_time_edit.dateTime().toPython(),
                 dialog.selected_color
             )
             self.timeline_widget.add_event(event)
@@ -95,7 +95,7 @@ class TimelineManager:
     def deserialize_events(self, events_data):
         """Deserialize and load timeline events"""
         from datetime import datetime
-        from PyQt6.QtGui import QColor
+        from PySide6.QtGui import QColor
         
         self.clear_events()
         for event_data in events_data:

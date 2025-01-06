@@ -1,8 +1,8 @@
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout,
                              QLineEdit, QLabel, QHBoxLayout, QDialogButtonBox,
                              QPushButton, QDateTimeEdit, QCheckBox, QTextEdit)
-from PyQt6.QtCore import Qt, QDateTime
-from PyQt6.QtGui import QIcon
+from PySide6.QtCore import Qt, QDateTime
+from PySide6.QtGui import QIcon
 from typing import Dict, Any, Optional
 from entities import Entity
 from datetime import datetime
@@ -186,7 +186,7 @@ class PropertyEditor(QDialog):
                 if isinstance(input_field, QDateTimeEdit):
                     # Only include date if checkbox is checked
                     if self.date_checkboxes[prop_name].isChecked():
-                        dt = input_field.dateTime().toPyDateTime()
+                        dt = input_field.dateTime().toPython()
                         value = dt.replace(second=0)
                     else:
                         value = None

@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene
-from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal, QSizeF
-from PyQt6.QtGui import QPainter, QColor, QPainterPath, QPen, QBrush
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene
+from PySide6.QtCore import Qt, QPointF, QRectF, Signal
+from PySide6.QtGui import QPainter, QColor, QPainterPath, QPen, QBrush
 from typing import Optional
 
 from ..components.node_visual import NodeVisual, NodeVisualState
@@ -11,7 +11,7 @@ from entities.event import Event
 from ..dialogs.timeline_editor import TimelineEvent
 
 class GraphView(QGraphicsView):
-    scaleChanged = pyqtSignal(float)
+    scaleChanged = Signal(float)
     
     def __init__(self, parent=None):
         super().__init__(parent)

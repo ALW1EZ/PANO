@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
-from PyQt6.QtWidgets import (QWidget, QApplication, QDialog)
-from PyQt6.QtCore import Qt, QRectF, QDateTime
-from PyQt6.QtGui import QPainter, QPen, QBrush, QFont
+from PySide6.QtWidgets import (QWidget, QApplication, QDialog)
+from PySide6.QtCore import Qt, QRectF, QDateTime
+from PySide6.QtGui import QPainter, QPen, QBrush, QFont
 
 from ..styles.timeline_style import TimelineStyle
 from ..dialogs.timeline_editor import TimelineEvent, EditEventDialog
@@ -339,8 +339,8 @@ class TimelineVisual(QWidget):
             # Update the event
             event.title = dialog.title_edit.text()
             event.description = dialog.description_edit.text()
-            event.start_time = dialog.start_time_edit.dateTime().toPyDateTime()
-            event.end_time = dialog.end_time_edit.dateTime().toPyDateTime()
+            event.start_time = dialog.start_time_edit.dateTime().toPython()
+            event.end_time = dialog.end_time_edit.dateTime().toPython()
             event.color = dialog.selected_color
             
             # Remove and reinsert to trigger proper sorting

@@ -1,8 +1,8 @@
 from datetime import datetime
-from PyQt6.QtWidgets import (QDialog, QLineEdit, QDateTimeEdit, QPushButton,
+from PySide6.QtWidgets import (QDialog, QLineEdit, QDateTimeEdit, QPushButton,
                            QFormLayout, QColorDialog)
-from PyQt6.QtCore import QDateTime
-from PyQt6.QtGui import QColor
+from PySide6.QtCore import QDateTime
+from PySide6.QtGui import QColor
 
 from ..styles.timeline_style import TimelineStyle
 

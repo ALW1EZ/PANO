@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsTextItem, QMenu
-from PyQt6.QtCore import Qt, QPointF, QRectF, QLineF
-from PyQt6.QtGui import QPainter, QPen, QPolygonF, QBrush
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem, QMenu
+from PySide6.QtCore import Qt, QPointF, QRectF, QLineF
+from PySide6.QtGui import QPainter, QPen, QPolygonF, QBrush
 import math
 
 from .node_visual import NodeVisual
