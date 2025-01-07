@@ -19,8 +19,6 @@ class Vehicle(Entity):
             "model": str,
             "year": int,
             "vin": str,
-            "notes": str,
-            "source": str
         })
 
     def update_label(self):

@@ -17,8 +17,6 @@ class Email(Entity):
         self.setup_properties({
             "address": str,
             "domain": str,
-            "source": str,
-            "notes": str
         })
         
         self.property_validators.update({

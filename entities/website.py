@@ -23,8 +23,6 @@ class Website(Entity):
             "ip_address": str,
             "status": str,  # active, inactive, redirecting
             "technologies": str,  # comma-separated list of technologies used
-            "notes": str,
-            "source": str
         })
         
         # Override specific validators that need constraints

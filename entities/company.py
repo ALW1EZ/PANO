@@ -14,8 +14,6 @@ class Company(Entity):
         self.setup_properties({
             "name": str,
             "description": str,
-            "notes": str,
-            "source": str
         })
 
     def update_label(self):

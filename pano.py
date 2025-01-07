@@ -1,51 +1,26 @@
 from datetime import datetime
-import sys
-import os
+import aiofiles
+import asyncio
 import json
-import math
+import logging
+import sys
+from PySide6.QtCore import Qt, QPointF, QMimeData, QSize
+from PySide6.QtGui import QAction, QDrag, QIcon, QColor
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QGraphicsScene, QToolBar,
     QLineEdit, QMessageBox, QFileDialog, QListWidget, QLabel,
     QSplitter, QListWidgetItem, QDockWidget, QVBoxLayout, QWidget
 )
-from PySide6.QtCore import Qt, QPointF, QMimeData, QSize
-from PySide6.QtGui import QAction, QDrag, QIcon, QColor
-import networkx as nx
-from ui.views.graph_view import GraphView, NodeVisual
-from entities import ENTITY_TYPES, load_entities
-from transforms import TRANSFORMS, ENTITY_TRANSFORMS, load_transforms
-import asyncio
-import logging
-from typing import Optional, Dict, Any
 from qasync import QEventLoop, asyncSlot
-from ui.managers.layout_manager import LayoutManager
-from ui.managers.timeline_manager import TimelineManager
-import aiofiles
+
+from entities import ENTITY_TYPES, load_entities
+from transforms import ENTITY_TRANSFORMS, load_transforms
 from ui.components.map_visual import MapVisual
 from ui.components.timeline_visual import TimelineVisual, TimelineEvent
-
-from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
-import asyncio
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QDockWidget, QVBoxLayout, QWidget, QToolBar,
-    QLineEdit, QMessageBox, QListWidget, QLabel, 
-    QSplitter, QListWidgetItem, QFileDialog
-)
-from PySide6.QtCore import Qt, QPointF, QMimeData, QSize
-from PySide6.QtGui import QAction, QDrag, QIcon
-import networkx as nx
-from ui.views.graph_view import GraphView, NodeVisual
-from entities import ENTITY_TYPES, load_entities
-from transforms import TRANSFORMS, ENTITY_TRANSFORMS, load_transforms
-import json
-import os
-import math
-import logging
-from typing import Optional, Dict, Any
-from qasync import QEventLoop, asyncSlot
 from ui.managers.layout_manager import LayoutManager
 from ui.managers.map_manager import MapManager
-from ui.components.timeline_visual import TimelineEvent
+from ui.managers.timeline_manager import TimelineManager
+from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -101,7 +76,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "3.2.11"
+        self.version = "3.2.12"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None

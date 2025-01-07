@@ -21,8 +21,6 @@ class Person(Entity):
             "height": float,
             "nationality": str,
             "occupation": str,
-            "notes": str,
-            "source": str
         })
         
         # Override specific validators that need constraints

@@ -14,8 +14,6 @@ class Image(Entity):
             "title": str,
             "url": str,
             "description": str,
-            "notes": str,
-            "source": str
         })
 
     def update_label(self):

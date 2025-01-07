@@ -113,7 +113,7 @@ class PropertyEditor(QDialog):
                 row.addLayout(date_container)
             elif prop_name == 'notes':
                 input_field = QTextEdit()
-                input_field.setFixedHeight(100)
+                input_field.setFixedHeight(50)
                 input_field.setStyleSheet("""
                     QTextEdit {
                         background-color: #1E1E1E;

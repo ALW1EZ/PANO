@@ -24,8 +24,6 @@ class Location(Entity):
             "latitude": str,  # Changed to string
             "longitude": str,  # Changed to string
             "location_type": str,  # residential, commercial, industrial
-            "notes": str,
-            "source": str
         })
         
         # Override specific validators that need constraints

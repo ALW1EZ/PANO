@@ -16,8 +16,6 @@ class Event(Entity):
             "description": str,
             "start_date": datetime,
             "end_date": datetime,
-            "notes": str,
-            "source": str
         })
     
     def update_label(self):
