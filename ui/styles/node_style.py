@@ -6,7 +6,7 @@ from entities import Entity, ENTITY_TYPES
 class NodeStyle:
     """Style configuration for nodes"""
     min_width: float = 210
-    min_height: float = 64
+    min_height: float = 70
     radius: float = 8
     normal_color: QColor = field(default_factory=lambda: QColor(45, 45, 48))
     selected_color: QColor = field(default_factory=lambda: QColor(55, 55, 58))

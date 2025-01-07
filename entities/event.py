@@ -22,6 +22,15 @@ class Event(Entity):
     
     def update_label(self):
         self.label = self.format_label(["name"])
+    
+    # override properties for the timeline
+    @property
+    def name(self) -> str:
+        return self.properties.get("name", "") or "Event"
+    
+    @property
+    def description(self) -> str:
+        return self.properties.get("description", "")
         
     def to_dict(self) -> dict:
         data = super().to_dict()
