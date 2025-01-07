@@ -142,6 +142,28 @@ class FloatValidator(PropertyValidator[float]):
             return f"{value:,}"
         return str(value)
 
+class ListValidator(PropertyValidator[str]):
+    """Validator for list/dropdown properties"""
+    def __init__(self, choices: list[str], allow_empty: bool = True):
+        super().__init__(str)
+        self.choices = choices
+        self.allow_empty = allow_empty
+        
+    def validate(self, value: Any) -> str:
+        if not value and self.allow_empty:
+            return ""
+            
+        value = super().validate(value)
+        if value not in self.choices:
+            raise PropertyValidationError(
+                "unknown", value,
+                f"Value must be one of: {', '.join(self.choices)}"
+            )
+        return value
+    
+    def get_choices(self) -> list[str]:
+        """Get the list of valid choices"""
+        return self.choices
 
 @dataclass
 class EntityData:
@@ -221,9 +243,17 @@ class Entity(ABC):
         # Let subclasses initialize their properties
         self.init_properties()
         
-        # Add image property last to ensure it appears at the bottom
-        self.property_types["image"] = str
-        self.property_validators["image"] = StringValidator()
+        # Add standard properties last to ensure they appear at the bottom
+        self.property_types.update({
+            "notes": str,
+            "source": str,
+            "image": str
+        })
+        self.property_validators.update({
+            "notes": StringValidator(),
+            "source": StringValidator(),
+            "image": StringValidator()
+        })
         
         # Auto-generate property getters for all properties
         self._generate_property_getters()
@@ -393,3 +423,38 @@ class Entity(ABC):
     
     def __hash__(self) -> int:
         return hash(self.id) 
+    
+    def get_property_type(self, prop_name: str) -> str:
+        """Get the UI type for a property (e.g. 'text', 'number', 'dropdown', etc.)"""
+        if prop_name not in self.property_validators:
+            return "text"
+            
+        validator = self.property_validators[prop_name]
+        if isinstance(validator, ListValidator):
+            return "dropdown"
+        elif isinstance(validator, IntegerValidator):
+            return "number"
+        elif isinstance(validator, FloatValidator):
+            return "number"
+        return "text"
+    
+    def get_property_choices(self, prop_name: str) -> list[str]:
+        """Get choices for a dropdown property"""
+        if prop_name not in self.property_validators:
+            return []
+            
+        validator = self.property_validators[prop_name]
+        if isinstance(validator, ListValidator):
+            return validator.get_choices()
+        return []
+    
+    def get_property_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """Get metadata about all properties for UI rendering"""
+        metadata = {}
+        for prop_name in self.property_types:
+            prop_type = self.get_property_type(prop_name)
+            metadata[prop_name] = {
+                "type": prop_type,
+                "choices": self.get_property_choices(prop_name) if prop_type == "dropdown" else []
+            }
+        return metadata 

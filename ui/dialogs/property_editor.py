@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import (QDialog, QVBoxLayout,
                              QLineEdit, QLabel, QHBoxLayout, QDialogButtonBox,
-                             QPushButton, QDateTimeEdit, QCheckBox, QTextEdit)
+                             QPushButton, QDateTimeEdit, QCheckBox, QTextEdit,
+                             QComboBox)
 from PySide6.QtCore import Qt, QDateTime
 from PySide6.QtGui import QIcon
 from typing import Dict, Any, Optional
@@ -20,6 +21,9 @@ class PropertyEditor(QDialog):
         self.setWindowTitle(f"Edit {self.entity.type_label.lower()} Properties")
         layout = QVBoxLayout(self)
         
+        # Get property metadata for UI rendering
+        property_metadata = self.entity.get_property_metadata()
+        
         # Create input fields for each property
         for prop_name, validator in self.entity.property_validators.items():
             if prop_name.startswith('_'):  # Skip internal properties
@@ -31,8 +35,49 @@ class PropertyEditor(QDialog):
             label = QLabel(f"{prop_name}:")
             row.addWidget(label)
             
-            # Input field
-            if prop_name in ['start_date', 'end_date']:
+            # Get property metadata
+            metadata = property_metadata.get(prop_name, {"type": "text", "choices": []})
+            
+            # Input field based on property type
+            if metadata["type"] == "dropdown":
+                input_field = QComboBox()
+                if self.entity.property_validators[prop_name].allow_empty:
+                    input_field.addItem("")  # Add empty option
+                input_field.addItems(metadata["choices"])
+                
+                # Set current value if exists
+                current_value = str(self.entity.properties.get(prop_name, ""))
+                index = input_field.findText(current_value)
+                if index >= 0:
+                    input_field.setCurrentIndex(index)
+                    
+                # Style the combo box
+                input_field.setStyleSheet("""
+                    QComboBox {
+                        background-color: #1E1E1E;
+                        color: #CCCCCC;
+                        border: 1px solid #3F3F46;
+                        padding: 5px;
+                        border-radius: 2px;
+                        min-width: 200px;
+                    }
+                    QComboBox::drop-down {
+                        border: none;
+                        width: 20px;
+                    }
+                    QComboBox::down-arrow {
+                        image: none;
+                        width: 12px;
+                        height: 12px;
+                    }
+                    QComboBox QAbstractItemView {
+                        background-color: #1E1E1E;
+                        color: #CCCCCC;
+                        selection-background-color: #007ACC;
+                    }
+                """)
+                row.addWidget(input_field)
+            elif prop_name in ['start_date', 'end_date']:
                 # Create a container for date controls
                 date_container = QHBoxLayout()
                 
@@ -194,6 +239,8 @@ class PropertyEditor(QDialog):
                     value = None
             elif prop_name == 'notes':
                 value = input_field.toPlainText()
+            elif isinstance(input_field, QComboBox):
+                value = input_field.currentText()
             else:
                 value = input_field.text().strip()
             values[prop_name] = value

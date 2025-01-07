@@ -524,6 +524,8 @@ class NodeVisual(QGraphicsObject):
 
     def _load_local_image(self, path: str):
         """Load image from local file"""
+        if path.startswith("file://"):
+            path = path[7:]
         if os.path.exists(path):
             pixmap = QPixmap(path)
             if not pixmap.isNull():
