@@ -225,9 +225,31 @@ class Entity(ABC):
         self.property_types["image"] = str
         self.property_validators["image"] = StringValidator()
         
+        # Auto-generate property getters for all properties
+        self._generate_property_getters()
+        
         # Validate and update data
         self.validate_properties()
         self.update_data()
+    
+    def _generate_property_getters(self):
+        """Auto-generate property getters for all properties defined in property_types"""
+        for prop_name, prop_type in self.property_types.items():
+            if not hasattr(self.__class__, prop_name):
+                # Create a default property getter if one doesn't exist
+                default_value = "" if prop_type == str else 0 if prop_type == int else 0.0 if prop_type == float else None
+                
+                def getter(self, _name=prop_name, _default=default_value) -> Any:
+                    """Auto-generated property getter"""
+                    return _default
+                
+                # Set the name and doc before applying the decorator
+                getter.__name__ = prop_name
+                getter.__doc__ = f"Get the {prop_name} property"
+                
+                # Apply the decorator and set the property
+                decorated_getter = entity_property(getter)
+                setattr(self.__class__, prop_name, decorated_getter)
     
     def init_properties(self):
         """Initialize properties for this entity.

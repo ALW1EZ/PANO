@@ -18,10 +18,3 @@ class Text(Entity):
 
     def update_label(self):
         self.label = self.format_label(["text"])
-    
-    @entity_property
-    def text(self) -> str:
-        return ""
-    
-    def get_main_display(self) -> str:
-        return self.text or "Text"

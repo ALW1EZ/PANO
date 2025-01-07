@@ -22,33 +22,6 @@ class Event(Entity):
     
     def update_label(self):
         self.label = self.format_label(["name"])
-
-    @entity_property
-    def name(self) -> str:
-        return ""
-
-    @entity_property
-    def description(self) -> str:
-        return ""
-
-    @entity_property
-    def notes(self) -> str:
-        return ""
-
-    @entity_property
-    def source(self) -> str:
-        return ""
-    
-    @entity_property
-    def start_date(self) -> datetime:
-        return None
-    
-    @entity_property
-    def end_date(self) -> datetime:
-        return None
-
-    def get_main_display(self) -> str:
-        return self.name or "Event"
         
     def to_dict(self) -> dict:
         data = super().to_dict()

@@ -20,26 +20,3 @@ class Image(Entity):
 
     def update_label(self):
         self.label = self.format_label(["title"])
-    
-    @entity_property
-    def title(self) -> str:
-        return "" 
-    
-    @entity_property
-    def url(self) -> str:
-        return ""
-    
-    @entity_property
-    def description(self) -> str:
-        return ""
-    
-    @entity_property
-    def notes(self) -> str:
-        return ""
-    
-    @entity_property
-    def source(self) -> str:
-        return ""
-
-    def get_main_display(self) -> str:
-        return self.title or "Image"

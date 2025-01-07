@@ -18,10 +18,3 @@ class Username(Entity):
 
     def update_label(self):
         self.label = self.format_label(["username"])
-    
-    @entity_property
-    def username(self) -> str:
-        return ""
-
-    def get_main_display(self) -> str:
-        return self.username or "Username"

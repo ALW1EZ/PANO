@@ -37,29 +37,3 @@ class Phone(Entity):
         else:
             self.properties["_display_number"] = self.properties.get("number", "")
         self.label = self.format_label(["_display_number"])
-    
-    @entity_property
-    def number(self) -> str:
-        """Get the phone number"""
-        return ""
-    
-    @entity_property
-    def country_code(self) -> str:
-        """Get the country code"""
-        return ""
-    
-    @entity_property
-    def phone_type(self) -> str:
-        """Get the phone type"""
-        return ""
-    
-    @entity_property
-    def carrier(self) -> str:
-        """Get the phone carrier"""
-        return ""
-    
-    def get_main_display(self) -> str:
-        """Get the main text to display for this phone number"""
-        if "country_code" in self.properties and "number" in self.properties:
-            return f"+{self.country_code} {self.number}"
-        return self.number or "Phone" 

@@ -25,35 +25,4 @@ class Vehicle(Entity):
 
     def update_label(self):
         """Update the label based on make, model, and year"""
-        self.label = f"{self.model} {self.year}"
-
-    @entity_property
-    def model(self) -> str:
-        """Get the model of the vehicle"""
-        return ""
-
-    @entity_property
-    def year(self) -> int:
-        """Get the year of the vehicle"""
-        return 0
-
-    @entity_property
-    def vin(self) -> str:
-        """Get the VIN of the vehicle"""
-        return ""
-
-    @entity_property
-    def notes(self) -> str:
-        """Get the notes for the vehicle"""
-        return ""
-
-    @entity_property
-    def source(self) -> str:
-        """Get the source of the vehicle"""
-        return ""
-
-    def get_main_display(self) -> str:
-        """Get the main text to display for this vehicle"""
-        if "model" in self.properties and "year" in self.properties:
-            return f"{self.model} {self.year}"
-        return self.model or "Vehicle"
+        self.label = self.format_label(["model", "year"])

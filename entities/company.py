@@ -20,23 +20,3 @@ class Company(Entity):
 
     def update_label(self):
         self.label = self.format_label(["name"])
-    
-    @entity_property
-    def name(self) -> str:
-        return ""
-
-    @entity_property
-    def description(self) -> str:
-        return ""
-
-    @entity_property
-    def notes(self) -> str:
-        return ""
-
-    @entity_property
-    def source(self) -> str:
-        return ""
-
-    def get_main_display(self) -> str:
-        """Get the main text to display for this company"""
-        return self.name or "Company" 

@@ -36,32 +36,3 @@ class Person(Entity):
     def update_label(self):
         """Update the label based on person's name"""
         self.label = self.format_label(["full_name"])
-    
-    @entity_property
-    def full_name(self) -> str:
-        """Get the person's full name"""
-        return ""
-    
-    @entity_property
-    def age(self) -> int:
-        """Get the person's age"""
-        return 0
-    
-    @entity_property
-    def height(self) -> float:
-        """Get the person's height in cm"""
-        return 0.0
-    
-    @entity_property
-    def nationality(self) -> str:
-        """Get the person's nationality"""
-        return ""
-    
-    @entity_property
-    def occupation(self) -> str:
-        """Get the person's occupation"""
-        return ""
-    
-    def get_main_display(self) -> str:
-        """Get the main text to display for this person"""
-        return self.full_name or "Person" 
