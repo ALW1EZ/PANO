@@ -24,6 +24,7 @@ if [ -f "requirements.txt" ]; then
 else
     echo -e "${BLUE}Installing required packages...${NC}"
     pip install PySide6 networkx qasync scipy folium aiofiles
+    pip install -U g4f
 fi
 
 # Start PANO

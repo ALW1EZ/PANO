@@ -21,6 +21,7 @@ from ui.managers.layout_manager import LayoutManager
 from ui.managers.map_manager import MapManager
 from ui.managers.timeline_manager import TimelineManager
 from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
+from ui.components.ai_dock import AIDock
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -76,7 +77,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "3.2.12"
+        self.version = "4.0.0"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -85,25 +86,21 @@ class MainWindow(QMainWindow):
         load_entities()
         load_transforms()
         
+        # Setup initial UI components
         self._setup_actions()
+        self._init_ui_components()
+        
+        # Create managers first
+        self._setup_managers()
+        
+        # Now setup the complete UI with managers
         self._setup_ui()
+        
         self.resize(1200, 800)
-        
-        # Create managers
-        self.layout_manager = LayoutManager(self.graph_view)
-        self.timeline_manager = TimelineManager(self)
-        self.map_manager = MapManager(self.map_widget)
-        
-        # Connect map manager to graph manager
-        self.graph_view.graph_manager.set_map_manager(self.map_manager)
-        
         logger.info("PANO initialized successfully")
         
-    def _setup_ui(self):
-        """Setup the main UI components"""
-        # Set application style
-        self.setStyleSheet(self._get_stylesheet())
-        
+    def _init_ui_components(self):
+        """Initialize basic UI components needed by managers"""
         # Create central widget with splitter
         central_widget = QWidget()
         central_layout = QVBoxLayout(central_widget)
@@ -127,6 +124,21 @@ class MainWindow(QMainWindow):
         
         central_layout.addWidget(self.vertical_splitter)
         self.setCentralWidget(central_widget)
+        
+    def _setup_managers(self):
+        """Setup all managers"""
+        # Create managers in correct order
+        self.layout_manager = LayoutManager(self.graph_view)
+        self.timeline_manager = TimelineManager(self)
+        self.map_manager = MapManager(self.map_widget)
+        
+        # Connect map manager to graph manager
+        self.graph_view.graph_manager.set_map_manager(self.map_manager)
+        
+    def _setup_ui(self):
+        """Setup the complete UI with managers"""
+        # Set application style
+        self.setStyleSheet(self._get_stylesheet())
         
         # Create left dock widget with entities and transforms
         self.setup_left_dock()
@@ -153,18 +165,15 @@ class MainWindow(QMainWindow):
         entities_layout.addWidget(entities_label)
         entities_layout.addWidget(self.entities_list)
         
-        # Lower part - Transforms
-        transforms_widget = QWidget()
-        transforms_layout = QVBoxLayout(transforms_widget)
-        transforms_label = QLabel("Transforms")
-        transforms_label.setStyleSheet("color: white; font-weight: bold; padding: 5px;")
-        self.transforms_list = QListWidget()
-        transforms_layout.addWidget(transforms_label)
-        transforms_layout.addWidget(self.transforms_list)
+        # Lower part - AI Dock
+        ai_dock_widget = QWidget()
+        ai_dock_layout = QVBoxLayout(ai_dock_widget)
+        self.ai_dock = AIDock(self.graph_view.graph_manager, self.timeline_manager)
+        ai_dock_layout.addWidget(self.ai_dock)
         
         # Add widgets to splitter
         splitter.addWidget(entities_widget)
-        splitter.addWidget(transforms_widget)
+        splitter.addWidget(ai_dock_widget)
         
         # Add splitter to left dock
         left_layout.addWidget(splitter)
@@ -173,51 +182,6 @@ class MainWindow(QMainWindow):
         # Add left dock to main window
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, left_dock)
         
-        # Connect transform list double click
-        self.transforms_list.itemDoubleClicked.connect(self._handle_transform_selected)
-        
-    def _handle_transform_selected(self, item):
-        """Handle transform selection from the transforms list"""
-        if not self.selected_entity:
-            self.statusBar().showMessage("No entity selected", 3000)
-            return
-            
-        transform = item.data(Qt.ItemDataRole.UserRole)
-        if not transform:
-            return
-            
-        try:
-            # Get the node visual
-            node_visual = self.graph_view.graph_manager.nodes.get(self.selected_entity.id)
-            if node_visual:
-                # Create and run coroutine
-                loop = asyncio.get_event_loop()
-                loop.create_task(node_visual._execute_transform(transform))
-            else:
-                self.statusBar().showMessage("Node visual not found", 3000)
-        except Exception as e:
-            logger.error(f"Transform execution failed: {str(e)}", exc_info=True)
-            self.statusBar().showMessage(f"Transform error: {str(e)}", 3000)
-            QMessageBox.critical(self, "Transform Error", str(e))
-            
-    def update_transforms_list(self, entity):
-        """Update the transforms list based on the selected entity"""
-        self.transforms_list.clear()
-        self.selected_entity = entity
-        
-        if entity is None:
-            return
-            
-        # Get available transforms for the entity type
-        entity_type = entity.__class__.__name__
-        available_transforms = ENTITY_TRANSFORMS.get(entity_type, [])
-        
-        for transform in available_transforms:
-            item = QListWidgetItem(transform.name)
-            item.setToolTip(transform.description)
-            item.setData(Qt.ItemDataRole.UserRole, transform)
-            self.transforms_list.addItem(item)
-    
     def _setup_actions(self):
         """Setup application actions"""
         self.new_action = QAction("New", self)

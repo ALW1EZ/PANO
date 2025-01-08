@@ -17,6 +17,7 @@ class Vehicle(Entity):
         # Setup properties with types and default validators
         self.setup_properties({
             "model": str,
+            "color": str,
             "year": int,
             "vin": str,
         })

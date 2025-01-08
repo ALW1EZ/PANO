@@ -30,6 +30,7 @@ class EmailToPerson(Transform):
             label=f"{full_name}",
             properties={
                 "full_name": full_name,
+                "age": 30,
                 "source": "Email transform",
             }
         )
