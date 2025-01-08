@@ -46,7 +46,7 @@ class GraphManager:
             if hasattr(window, 'timeline_manager'):
                 if entity.start_date and entity.end_date:
                     timeline_event = TimelineEvent(
-                        title=entity.name or "Unnamed Event",
+                        title=entity.title,
                         description=entity.description or "",
                         start_time=entity.start_date,
                         end_time=entity.end_date,
@@ -104,7 +104,7 @@ class GraphManager:
                 # Add updated event to timeline if it has dates
                 if entity.start_date and entity.end_date:
                     timeline_event = TimelineEvent(
-                        title=entity.name or "Unnamed Event",
+                        title=entity.title,
                         description=entity.description or "",
                         start_time=entity.start_date,
                         end_time=entity.end_date,

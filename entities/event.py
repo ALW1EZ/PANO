@@ -1,7 +1,23 @@
 from dataclasses import dataclass
 from typing import ClassVar, Dict
-from .base import Entity, entity_property
+from .base import Entity, entity_property, StringValidator
 from datetime import datetime
+
+class DateTimeValidator(StringValidator):
+    """Validator for datetime strings in YYYY-MM-DD HH:mm format"""
+    def validate(self, value: any) -> str:
+        if isinstance(value, datetime):
+            return value.strftime("%Y-%m-%d %H:%M")
+            
+        if not isinstance(value, str):
+            value = str(value)
+            
+        try:
+            # Try to parse the date to validate format
+            datetime.strptime(value, "%Y-%m-%d %H:%M")
+            return value
+        except ValueError:
+            raise ValueError(f"Invalid datetime format. Expected YYYY-MM-DD HH:mm, got {value}")
 
 @dataclass
 class Event(Entity):
@@ -14,69 +30,97 @@ class Event(Entity):
         self.setup_properties({
             "name": str,
             "description": str,
-            "start_date": datetime,
-            "end_date": datetime,
+            "start_date": str,  # Changed from datetime to str
+            "end_date": str,    # Changed from datetime to str
+        })
+        
+        # Add validators for date fields
+        self.property_validators.update({
+            "start_date": DateTimeValidator(),
+            "end_date": DateTimeValidator()
         })
     
     def update_label(self):
-        self.label = self.format_label(["name"])
+        """Update both the node label and timeline title"""
+        if "name" in self.properties and self.properties["name"]:
+            self.label = self.properties["name"]
+            # Also set the title property to match the name for timeline consistency
+            self.properties["title"] = self.properties["name"]
+        else:
+            self.label = "Event"
+            self.properties["title"] = "Event"
     
-    # override properties for the timeline
     @property
-    def name(self) -> str:
+    def event_name(self) -> str:
+        """Get the event name property"""
         return self.properties.get("name", "") or "Event"
+    
+    @property
+    def title(self) -> str:
+        """Get the title for timeline display"""
+        return self.properties.get("title", self.event_name)
     
     @property
     def description(self) -> str:
         return self.properties.get("description", "")
+    
+    @property
+    def start_date(self) -> datetime | None:
+        """Get the start date as a datetime object"""
+        date_val = self.properties.get("start_date")
+        if not date_val:
+            return None
+            
+        if isinstance(date_val, datetime):
+            return date_val
+            
+        try:
+            return datetime.strptime(date_val, "%Y-%m-%d %H:%M")
+        except (ValueError, TypeError):
+            return None
+    
+    @property
+    def end_date(self) -> datetime | None:
+        """Get the end date as a datetime object"""
+        date_val = self.properties.get("end_date")
+        if not date_val:
+            return None
+            
+        if isinstance(date_val, datetime):
+            return date_val
+            
+        try:
+            return datetime.strptime(date_val, "%Y-%m-%d %H:%M")
+        except (ValueError, TypeError):
+            return None
         
     def to_dict(self) -> dict:
+        """Convert to dictionary, ensuring dates are in string format"""
         data = super().to_dict()
-        # Convert datetime objects to ISO format strings
-        if self.start_date:
-            if isinstance(self.start_date, datetime):
-                data['start_date'] = self.start_date.isoformat()
-            elif isinstance(self.start_date, str):
-                data['start_date'] = self.start_date
-        if self.end_date:
-            if isinstance(self.end_date, datetime):
-                data['end_date'] = self.end_date.isoformat()
-            elif isinstance(self.end_date, str):
-                data['end_date'] = self.end_date
+        # Ensure dates are in string format
+        if "start_date" in data["properties"] and isinstance(data["properties"]["start_date"], datetime):
+            data["properties"]["start_date"] = data["properties"]["start_date"].strftime("%Y-%m-%d %H:%M")
+        if "end_date" in data["properties"] and isinstance(data["properties"]["end_date"], datetime):
+            data["properties"]["end_date"] = data["properties"]["end_date"].strftime("%Y-%m-%d %H:%M")
         return data
     
     @classmethod
     def from_dict(cls, data: dict) -> 'Event':
-        # Convert ISO format strings back to datetime objects
-        if 'start_date' in data and data['start_date']:
-            data['start_date'] = datetime.fromisoformat(data['start_date'])
-        if 'end_date' in data and data['end_date']:
-            data['end_date'] = datetime.fromisoformat(data['end_date'])
+        """Create from dictionary, converting date strings to proper format"""
+        # Convert any date strings to proper format
+        if "properties" in data:
+            for date_field in ["start_date", "end_date"]:
+                if date_field in data["properties"] and data["properties"][date_field]:
+                    if isinstance(data["properties"][date_field], str):
+                        try:
+                            # Parse and reformat to ensure consistent format
+                            dt = datetime.strptime(data["properties"][date_field], "%Y-%m-%d %H:%M")
+                            data["properties"][date_field] = dt.strftime("%Y-%m-%d %H:%M")
+                        except ValueError:
+                            data["properties"][date_field] = None
         return super().from_dict(data)
 
     def get_display_properties(self) -> Dict[str, str]:
         """Get a dictionary of properties to display in the UI with formatted dates"""
         props = super().get_display_properties()
-        
-        # Format dates if they exist
-        if self.start_date:
-            if isinstance(self.start_date, datetime):
-                props['start_date'] = self.start_date.strftime("%Y-%m-%d %H:%M")
-            elif isinstance(self.start_date, str):
-                try:
-                    dt = datetime.fromisoformat(self.start_date)
-                    props['start_date'] = dt.strftime("%Y-%m-%d %H:%M")
-                except ValueError:
-                    props['start_date'] = self.start_date  # Keep original if parsing fails
-                    
-        if self.end_date:
-            if isinstance(self.end_date, datetime):
-                props['end_date'] = self.end_date.strftime("%Y-%m-%d %H:%M")
-            elif isinstance(self.end_date, str):
-                try:
-                    dt = datetime.fromisoformat(self.end_date)
-                    props['end_date'] = dt.strftime("%Y-%m-%d %H:%M")
-                except ValueError:
-                    props['end_date'] = self.end_date  # Keep original if parsing fails
-            
         return props

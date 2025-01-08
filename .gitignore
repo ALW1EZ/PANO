@@ -3,3 +3,6 @@ venv/
 
 # pycache
 __pycache__/
+
+# har_and_cookies
+har_and_cookies/
