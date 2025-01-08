@@ -200,6 +200,7 @@ Current graph state (with properties):
 {chr(10).join(detailed_entities)}
 
 CORE PRINCIPLES:
+0. ALWAYS respond in the same language as the user's input (e.g. if user writes in French, respond in French)
 1. NEVER infer or guess - only use explicitly stated information
 2. ALWAYS update existing entities instead of creating duplicates
 3. NEVER add properties unless explicitly mentioned
@@ -207,6 +208,7 @@ CORE PRINCIPLES:
 5. ALWAYS create relationship chains that tell a complete story
 6. ALWAYS create events for events or incidents with type "Event" and appropriate name property
 7. For events, use add_to_timeline property (default: true) to control timeline visibility
+8. Do not easily edit events, create new events to understand the whole scene
 
 INVESTIGATIVE CAPABILITIES:
 1. When asked about the graph, analyze relationships, timelines, and potential inconsistencies
@@ -224,6 +226,8 @@ DATE AND TIME RULES:
 5. For relative times (e.g. "X hours later"), add to the last event time
 6. For ongoing events, use the reference time
 7. If no specific time given, use 00:00 for start and end times
+8. If you're setting start date, set end date too
+9. Write less for descriptions, you can use notes for more detailed descriptions, but use new lines for new paragraphs
 
 If the input is a question or analysis request, provide a detailed response based on the current graph state.
 If the input describes new information, respond with a JSON operation as per this format:
@@ -233,7 +237,7 @@ Process this text: {text}"""
 
             # List of models to try in order
             models = [
-                "gpt-4",
+                "gpt-4o",
             ]
 
             # Try each model until one succeeds
@@ -269,43 +273,48 @@ Process this text: {text}"""
             # First try to find and parse JSON
             json_str = response.strip()
             
-            # Find the outermost valid JSON object
-            stack = []
-            start = -1
-            end = -1
-            
-            for i, char in enumerate(json_str):
-                if char == '{':
-                    if start == -1:
-                        start = i
-                    stack.append(char)
-                elif char == '}':
-                    if stack:
-                        stack.pop()
-                        if not stack:  # Found complete JSON object
-                            end = i + 1
-                            break
-            
-            if start != -1 and end != -1:
-                json_str = json_str[start:end]
-                json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)  # Remove trailing commas
-                json_str = re.sub(r'"\s*\.\s*}', '"}', json_str)    # Fix period before closing brace
-                json_str = re.sub(r'"\s*\.\s*,', '",', json_str)    # Fix period before comma
-                json_str = re.sub(r'\s+', ' ', json_str)            # Normalize whitespace
+            # If response contains a JSON-like structure, prioritize parsing it as an operation
+            if '{' in json_str and '}' in json_str:
+                # Find all potential JSON objects
+                json_matches = []
+                stack = []
+                start = -1
                 
-                try:
-                    data = json.loads(json_str)
-                    # Support both old and new format
-                    if "operations" in data:
-                        return data
-                    elif "action" in data:
-                        # Convert old format to new format
-                        return {"operations": [data]}
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, treat as analysis response
-                    pass
+                for i, char in enumerate(json_str):
+                    if char == '{':
+                        if start == -1:
+                            start = i
+                        stack.append(char)
+                    elif char == '}':
+                        if stack:
+                            stack.pop()
+                            if not stack:  # Found complete JSON object
+                                json_matches.append((start, i + 1))
+                                start = -1
+                
+                # Try each potential JSON object, starting with the largest
+                json_matches.sort(key=lambda x: x[1] - x[0], reverse=True)
+                
+                for start, end in json_matches:
+                    try:
+                        candidate = json_str[start:end]
+                        # Clean up common issues
+                        candidate = re.sub(r',(\s*[}\]])', r'\1', candidate)  # Remove trailing commas
+                        candidate = re.sub(r'"\s*\.\s*}', '"}', candidate)    # Fix period before closing brace
+                        candidate = re.sub(r'"\s*\.\s*,', '",', candidate)    # Fix period before comma
+                        candidate = re.sub(r'\s+', ' ', candidate)            # Normalize whitespace
+                        
+                        data = json.loads(candidate)
+                        
+                        # Validate it's an operation
+                        if "operations" in data:
+                            return data
+                        elif "action" in data:
+                            return {"operations": [data]}
+                    except json.JSONDecodeError:
+                        continue
             
-            # If no valid JSON found or parsing failed, return as analysis response
+            # If no valid JSON operations found, return as analysis response
             # Clean up the response text
             clean_response = response.strip()
             if clean_response:
@@ -630,6 +639,10 @@ Process this text: {text}"""
             self.input_area.clear()
             return
             
+        # Clear previous conversation
+        self.chat_area.clear()
+        
+        # Show current question
         self._add_message(text, True)
         self.input_area.clear()
         self.processing_started.emit()
