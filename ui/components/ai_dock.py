@@ -161,7 +161,7 @@ class AIDock(QWidget):
             logger.error(f"Model {model} failed: {str(e)}")
             return None
 
-    async def _process_with_g4f(self, text: str) -> Optional[Dict[str, Any]]:
+    async def _process_with_g4f(self, text: str) -> Optional[Dict[str, Any] | str]:
         """Process user input with G4F using fallback models"""
         try:
             # Build entity descriptions including existing entities
@@ -174,10 +174,16 @@ class AIDock(QWidget):
                 type_descriptions.append(f"  Description: {info['description']}")
                 type_descriptions.append(f"  Properties: {', '.join(props)}")
             
-            # Add information about existing entities
+            # Add information about existing entities with full properties
+            detailed_entities = []
             if self.graph_manager:
                 for node in self.graph_manager.nodes.values():
-                    existing_entities.append(f"- {node.node.type}: {node.node.label}")
+                    entity_info = [f"- {node.node.type}: {node.node.label}"]
+                    # Add properties
+                    for key, value in node.node.properties.items():
+                        if value and key not in ['notes', 'source', 'image']:
+                            entity_info.append(f"  {key}: {value}")
+                    detailed_entities.extend(entity_info)
 
             # Get current time for reference
             current_time = datetime.now()
@@ -190,8 +196,8 @@ Your task is to understand relationships, events, and entities, creating a coher
 Available entity types and their properties:
 {chr(10).join(type_descriptions)}
 
-Current graph state:
-{chr(10).join(existing_entities)}
+Current graph state (with properties):
+{chr(10).join(detailed_entities)}
 
 CORE PRINCIPLES:
 1. NEVER infer or guess - only use explicitly stated information
@@ -200,6 +206,15 @@ CORE PRINCIPLES:
 4. ALWAYS use UPPERCASE for relationship types
 5. ALWAYS create relationship chains that tell a complete story
 6. ALWAYS create events for events or incidents with type "Event" and appropriate name property
+7. For events, use add_to_timeline property (default: true) to control timeline visibility
+
+INVESTIGATIVE CAPABILITIES:
+1. When asked about the graph, analyze relationships, timelines, and potential inconsistencies
+2. Look for temporal conflicts in event timelines
+3. Identify missing or contradictory information
+4. Point out suspicious patterns or anomalies
+5. Consider geographical feasibility of movements
+6. Check for logical consistency in relationships
 
 DATE AND TIME RULES:
 1. All event dates MUST be in format "YYYY-MM-DD HH:mm" (e.g. "2023-12-25 14:30")
@@ -210,7 +225,8 @@ DATE AND TIME RULES:
 6. For ongoing events, use the reference time
 7. If no specific time given, use 00:00 for start and end times
 
-Response format must be a JSON object with one of these structures:
+If the input is a question or analysis request, provide a detailed response based on the current graph state.
+If the input describes new information, respond with a JSON operation as per this format:
 {RESPONSE_FORMAT}
 
 Process this text: {text}"""
@@ -224,10 +240,10 @@ Process this text: {text}"""
             for model in models:
                 response = await self._try_model(model, system_prompt, text)
                 if response:
-                    data = self._parse_g4f_response(response)
-                    if data:
+                    result = self._parse_g4f_response(response)
+                    if isinstance(result, dict):
                         # Update last event time if this was a successful event creation
-                        for operation in data.get("operations", []):
+                        for operation in result.get("operations", []):
                             if operation.get("action") == "create":
                                 for entity in operation.get("entities", []):
                                     if entity.get("type") == "Event":
@@ -237,7 +253,7 @@ Process this text: {text}"""
                                                 self.last_event_time = datetime.strptime(props["end_date"], "%Y-%m-%d %H:%M")
                                             except (ValueError, TypeError):
                                                 pass
-                    return data
+                    return result
                 logger.warning(f"Model {model} failed, trying next model")
             
             logger.error("All models failed")
@@ -247,9 +263,10 @@ Process this text: {text}"""
             logger.error(f"Error in G4F call: {str(e)}")
             return None
 
-    def _parse_g4f_response(self, response: str) -> Optional[Dict[str, Any]]:
-        """Parse and validate the G4F response"""
+    def _parse_g4f_response(self, response: str) -> Optional[Dict[str, Any] | str]:
+        """Parse and validate the G4F response. Returns either a dict for operations or a string for analysis."""
         try:
+            # First try to find and parse JSON
             json_str = response.strip()
             
             # Find the outermost valid JSON object
@@ -278,23 +295,22 @@ Process this text: {text}"""
                 
                 try:
                     data = json.loads(json_str)
+                    # Support both old and new format
+                    if "operations" in data:
+                        return data
+                    elif "action" in data:
+                        # Convert old format to new format
+                        return {"operations": [data]}
                 except json.JSONDecodeError:
-                    # Try to fix common quote issues
-                    json_str = re.sub(r'(?<!\\)"(?![:,}\]])\s*([^"]*?)\s*(?<!\\)"', r'"\1"', json_str)
-                    data = json.loads(json_str)
+                    # If JSON parsing fails, treat as analysis response
+                    pass
+            
+            # If no valid JSON found or parsing failed, return as analysis response
+            # Clean up the response text
+            clean_response = response.strip()
+            if clean_response:
+                return clean_response
                 
-                # Support both old and new format
-                if "operations" in data:
-                    return data
-                elif "action" in data:
-                    # Convert old format to new format
-                    return {"operations": [data]}
-                
-                logger.error(f"Invalid JSON structure: {json_str}")
-                
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parse error: {str(e)}")
-            logger.error(f"Problematic JSON: {json_str}")
         except Exception as e:
             logger.error(f"Error processing response: {str(e)}")
             logger.debug(f"Full response: {response}")
@@ -548,9 +564,30 @@ Process this text: {text}"""
             # Create connections
             for conn in data.get("connections", []):
                 try:
-                    if 0 <= conn["from"] < len(nodes) and 0 <= conn["to"] < len(nodes):
-                        source = nodes[conn["from"]]
-                        target = nodes[conn["to"]]
+                    # Try to get source and target nodes
+                    source = None
+                    target = None
+                    
+                    # Try index-based connection first
+                    try:
+                        from_idx = int(conn["from"])
+                        to_idx = int(conn["to"])
+                        if 0 <= from_idx < len(nodes) and 0 <= to_idx < len(nodes):
+                            source = nodes[from_idx]
+                            target = nodes[to_idx]
+                    except (ValueError, TypeError):
+                        # If not indices, try to find nodes by label
+                        from_label = str(conn["from"])
+                        to_label = str(conn["to"])
+                        
+                        # Find nodes by label
+                        for node in nodes:
+                            if node.node.label == from_label:
+                                source = node
+                            elif node.node.label == to_label:
+                                target = node
+                    
+                    if source and target:
                         relationship = conn.get("relationship", "")
                         
                         if source.node.id == target.node.id:
@@ -586,48 +623,60 @@ Process this text: {text}"""
         if not text:
             return
             
+        # Check for reset command
+        if text.lower() == "/reset":
+            self.chat_area.clear()
+            self.last_event_time = None
+            self.input_area.clear()
+            return
+            
         self._add_message(text, True)
         self.input_area.clear()
         self.processing_started.emit()
         
         async def process():
             try:
-                data = await self._process_with_g4f(text)
-                if not data:
+                result = await self._process_with_g4f(text)
+                if not result:
                     self._add_message("Sorry, I couldn't understand that. Please try rephrasing.", False)
                     return
                 
-                all_entities = []
-                all_edges = []
-                
-                # Process each operation in sequence
-                for operation in data.get("operations", []):
-                    action = operation.get("action")
-                    if action == "create":
-                        result = self._create_entities(operation)
-                        all_entities.extend(result['entities'])
-                        all_edges.extend(result['edges'])
-                    elif action == "update":
-                        result = self._update_entities(operation)
-                        all_entities.extend(result['entities'])
-                
-                if all_entities:
-                    self.entities_updated.emit()
-                    
-                    # Report all changes
-                    self._add_message("Changes made:", False)
-                    for entity in all_entities:
-                        self._add_message(f"- {entity.type}: {entity.label}", False)
-                    
-                    if all_edges:
-                        self._add_message("\nRelationships:", False)
-                        for edge in all_edges:
-                            source = edge.source.node.label
-                            target = edge.target.node.label
-                            rel = edge.relationship
-                            self._add_message(f"- {source} {rel} {target}", False)
+                if isinstance(result, str):
+                    # Handle analysis response
+                    self._add_message(result, False)
                 else:
-                    self._add_message("No changes were made. Please try rephrasing.", False)
+                    # Handle operations
+                    all_entities = []
+                    all_edges = []
+                    
+                    # Process each operation in sequence
+                    for operation in result.get("operations", []):
+                        action = operation.get("action")
+                        if action == "create":
+                            op_result = self._create_entities(operation)
+                            all_entities.extend(op_result['entities'])
+                            all_edges.extend(op_result['edges'])
+                        elif action == "update":
+                            op_result = self._update_entities(operation)
+                            all_entities.extend(op_result['entities'])
+                    
+                    if all_entities:
+                        self.entities_updated.emit()
+                        
+                        # Report all changes
+                        self._add_message("Changes made:", False)
+                        for entity in all_entities:
+                            self._add_message(f"- {entity.type}: {entity.label}", False)
+                        
+                        if all_edges:
+                            self._add_message("\nRelationships:", False)
+                            for edge in all_edges:
+                                source = edge.source.node.label
+                                target = edge.target.node.label
+                                rel = edge.relationship
+                                self._add_message(f"- {source} {rel} {target}", False)
+                    else:
+                        self._add_message("No changes were made. Please try rephrasing.", False)
             finally:
                 self.processing_finished.emit()
                 

@@ -77,40 +77,53 @@ class PropertyEditor(QDialog):
                     }
                 """)
                 row.addWidget(input_field)
+            elif isinstance(self.entity.property_types.get(prop_name), type) and self.entity.property_types[prop_name] == bool:
+                input_field = QCheckBox()
+                input_field.setChecked(self.entity.properties.get(prop_name, True))
+                input_field.setStyleSheet("""
+                    QCheckBox {
+                        color: #CCCCCC;
+                    }
+                    QCheckBox::indicator {
+                        width: 13px;
+                        height: 13px;
+                    }
+                    QCheckBox::indicator:unchecked {
+                        background-color: #1E1E1E;
+                        border: 1px solid #3F3F46;
+                    }
+                    QCheckBox::indicator:checked {
+                        background-color: #007ACC;
+                        border: 1px solid #007ACC;
+                    }
+                """)
+                row.addWidget(input_field)
             elif prop_name in ['start_date', 'end_date']:
-                # Create a container for date controls
-                date_container = QHBoxLayout()
-                
-                # Add checkbox
-                checkbox = QCheckBox("Enable")
-                self.date_checkboxes[prop_name] = checkbox
-                date_container.addWidget(checkbox)
-                
                 # Create date input
                 input_field = QDateTimeEdit()
                 input_field.setCalendarPopup(True)
                 input_field.setDisplayFormat("yyyy-MM-dd HH:mm")
-                input_field.setEnabled(True)  # Disabled by default
+                input_field.setEnabled(True)
                 
                 current_value = self.entity.properties.get(prop_name)
-                if current_value and isinstance(current_value, datetime):
-                    input_field.setDateTime(QDateTime.fromString(current_value.strftime("%Y-%m-%d %H:%M"), "yyyy-MM-dd HH:mm"))
-                    checkbox.setChecked(True)
-                    input_field.setEnabled(True)
+                if current_value:
+                    try:
+                        # Try parsing the date string directly
+                        if isinstance(current_value, str):
+                            dt = datetime.strptime(current_value, "%Y-%m-%d %H:%M")
+                        else:
+                            dt = current_value
+                        input_field.setDateTime(QDateTime.fromString(dt.strftime("%Y-%m-%d %H:%M"), "yyyy-MM-dd HH:mm"))
+                    except (ValueError, TypeError):
+                        # If parsing fails, use current time
+                        current_dt = datetime.now().replace(second=0, microsecond=0)
+                        input_field.setDateTime(QDateTime.fromString(current_dt.strftime("%Y-%m-%d %H:%M"), "yyyy-MM-dd HH:mm"))
                 else:
-                    input_field.setDateTime(QDateTime.currentDateTime())
-                    checkbox.setChecked(False)
+                    # No existing value, use current time
+                    current_dt = datetime.now().replace(second=0, microsecond=0)
+                    input_field.setDateTime(QDateTime.fromString(current_dt.strftime("%Y-%m-%d %H:%M"), "yyyy-MM-dd HH:mm"))
                 
-                # Connect checkbox to enable/disable date field
-                checkbox.stateChanged.connect(lambda state, field=input_field: field.setEnabled(state == Qt.CheckState.Checked))
-                
-                # Set seconds to 00
-                current_dt = input_field.dateTime()
-                current_dt.setTime(current_dt.time().addSecs(-current_dt.time().second()))
-                input_field.setDateTime(current_dt)
-                
-                date_container.addWidget(input_field)
-                row.addLayout(date_container)
+                row.addWidget(input_field)
             elif prop_name == 'notes':
                 input_field = QTextEdit()
                 input_field.setFixedHeight(50)
@@ -229,18 +242,17 @@ class PropertyEditor(QDialog):
         for prop_name, input_field in self.inputs.items():
             if prop_name in ['start_date', 'end_date']:
                 if isinstance(input_field, QDateTimeEdit):
-                    # Only include date if checkbox is checked
-                    if self.date_checkboxes[prop_name].isChecked():
-                        dt = input_field.dateTime().toPython()
-                        value = dt.replace(second=0)
-                    else:
-                        value = None
+                    dt = input_field.dateTime().toPython()
+                    # Strip both seconds and microseconds
+                    value = dt.replace(second=0, microsecond=0)
                 else:
                     value = None
             elif prop_name == 'notes':
                 value = input_field.toPlainText()
             elif isinstance(input_field, QComboBox):
                 value = input_field.currentText()
+            elif isinstance(input_field, QCheckBox):
+                value = input_field.isChecked()
             else:
                 value = input_field.text().strip()
             values[prop_name] = value

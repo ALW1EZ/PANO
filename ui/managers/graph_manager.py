@@ -44,7 +44,7 @@ class GraphManager:
         if isinstance(entity, Event):
             window = self.view.window()
             if hasattr(window, 'timeline_manager'):
-                if entity.start_date and entity.end_date:
+                if entity.start_date and entity.end_date and entity.properties.get("add_to_timeline", True):
                     timeline_event = TimelineEvent(
                         title=entity.title,
                         description=entity.description or "",
@@ -101,8 +101,8 @@ class GraphManager:
                 for event in existing_events:
                     timeline_manager.timeline_widget.delete_event(event)
                     
-                # Add updated event to timeline if it has dates
-                if entity.start_date and entity.end_date:
+                # Add updated event to timeline if it has dates and add_to_timeline is True
+                if entity.start_date and entity.end_date and entity.properties.get("add_to_timeline", True):
                     timeline_event = TimelineEvent(
                         title=entity.title,
                         description=entity.description or "",

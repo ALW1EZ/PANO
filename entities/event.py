@@ -14,10 +14,16 @@ class DateTimeValidator(StringValidator):
             
         try:
             # Try to parse the date to validate format
-            datetime.strptime(value, "%Y-%m-%d %H:%M")
-            return value
+            dt = datetime.strptime(value, "%Y-%m-%d %H:%M")
+            # Return formatted string without seconds
+            return dt.strftime("%Y-%m-%d %H:%M")
         except ValueError:
-            raise ValueError(f"Invalid datetime format. Expected YYYY-MM-DD HH:mm, got {value}")
+            # Try to parse with seconds and convert to HH:mm format
+            try:
+                dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                return dt.strftime("%Y-%m-%d %H:%M")
+            except ValueError:
+                raise ValueError(f"Invalid datetime format. Expected YYYY-MM-DD HH:mm, got {value}")
 
 @dataclass
 class Event(Entity):
@@ -30,8 +36,9 @@ class Event(Entity):
         self.setup_properties({
             "name": str,
             "description": str,
-            "start_date": str,  # Changed from datetime to str
-            "end_date": str,    # Changed from datetime to str
+            "start_date": str,  # Format: YYYY-MM-DD HH:mm
+            "end_date": str,    # Format: YYYY-MM-DD HH:mm
+            "add_to_timeline": bool,  # New property to control timeline visibility
         })
         
         # Add validators for date fields
@@ -39,6 +46,10 @@ class Event(Entity):
             "start_date": DateTimeValidator(),
             "end_date": DateTimeValidator()
         })
+        
+        # Set default value for add_to_timeline
+        if "add_to_timeline" not in self.properties:
+            self.properties["add_to_timeline"] = True
     
     def update_label(self):
         """Update both the node label and timeline title"""
@@ -72,10 +83,11 @@ class Event(Entity):
             return None
             
         if isinstance(date_val, datetime):
-            return date_val
+            return date_val.replace(second=0, microsecond=0)
             
         try:
-            return datetime.strptime(date_val, "%Y-%m-%d %H:%M")
+            dt = datetime.strptime(date_val, "%Y-%m-%d %H:%M")
+            return dt
         except (ValueError, TypeError):
             return None
     
@@ -87,17 +99,18 @@ class Event(Entity):
             return None
             
         if isinstance(date_val, datetime):
-            return date_val
+            return date_val.replace(second=0, microsecond=0)
             
         try:
-            return datetime.strptime(date_val, "%Y-%m-%d %H:%M")
+            dt = datetime.strptime(date_val, "%Y-%m-%d %H:%M")
+            return dt
         except (ValueError, TypeError):
             return None
         
     def to_dict(self) -> dict:
         """Convert to dictionary, ensuring dates are in string format"""
         data = super().to_dict()
-        # Ensure dates are in string format
+        # Ensure dates are in string format without seconds
         if "start_date" in data["properties"] and isinstance(data["properties"]["start_date"], datetime):
             data["properties"]["start_date"] = data["properties"]["start_date"].strftime("%Y-%m-%d %H:%M")
         if "end_date" in data["properties"] and isinstance(data["properties"]["end_date"], datetime):
@@ -113,14 +126,35 @@ class Event(Entity):
                 if date_field in data["properties"] and data["properties"][date_field]:
                     if isinstance(data["properties"][date_field], str):
                         try:
-                            # Parse and reformat to ensure consistent format
+                            # Parse and reformat to ensure consistent format without seconds
                             dt = datetime.strptime(data["properties"][date_field], "%Y-%m-%d %H:%M")
                             data["properties"][date_field] = dt.strftime("%Y-%m-%d %H:%M")
                         except ValueError:
-                            data["properties"][date_field] = None
+                            try:
+                                # Try parsing with seconds and convert to HH:mm format
+                                dt = datetime.strptime(data["properties"][date_field], "%Y-%m-%d %H:%M:%S")
+                                data["properties"][date_field] = dt.strftime("%Y-%m-%d %H:%M")
+                            except ValueError:
+                                data["properties"][date_field] = None
         return super().from_dict(data)
 
     def get_display_properties(self) -> Dict[str, str]:
         """Get a dictionary of properties to display in the UI with formatted dates"""
         props = super().get_display_properties()
+        
+        # Format dates without seconds
+        if "start_date" in props:
+            try:
+                dt = datetime.strptime(props["start_date"], "%Y-%m-%d %H:%M:%S")
+                props["start_date"] = dt.strftime("%Y-%m-%d %H:%M")
+            except ValueError:
+                pass
+                
+        if "end_date" in props:
+            try:
+                dt = datetime.strptime(props["end_date"], "%Y-%m-%d %H:%M:%S")
+                props["end_date"] = dt.strftime("%Y-%m-%d %H:%M")
+            except ValueError:
+                pass
+                
         return props
