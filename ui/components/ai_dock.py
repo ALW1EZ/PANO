@@ -89,8 +89,7 @@ class AIDock(QWidget):
                 color: white;
                 border: none;
                 border-radius: 5px;
-                padding: 10px;
-                margin: 5px;
+                margin-top: 5px;
             }
         """)
 
@@ -122,7 +121,7 @@ class AIDock(QWidget):
     def _add_message(self, text: str, is_user: bool = True) -> None:
         """Add a message to the chat area"""
         color = "#e0e0e0" if is_user else "#90CAF9"
-        prefix = "You:" if is_user else "AI:"
+        prefix = "You:" if is_user else "PANAI:"
         self.chat_area.append(f'<span style="color: {color}"><b>{prefix}</b> {text}</span>')
         
         scrollbar = self.chat_area.verticalScrollBar()
@@ -161,39 +160,95 @@ class AIDock(QWidget):
                 for node in self.graph_manager.nodes.values():
                     existing_entities.append(f"- {node.node.type}: {node.node.label}")
 
-            system_prompt = f"""You are an AI assistant that helps create and connect entities in a graph database.
-Your task is to analyze the text and create or update entities and relationships.
+            system_prompt = f"""You are an advanced AI investigator that helps analyze and map complex scenarios in a graph database.
+Your task is to understand relationships, events, and entities, creating a coherent graph representation.
 
 Available entity types and their properties:
 {chr(10).join(type_descriptions)}
 
-Existing entities in the graph:
+Current graph state:
 {chr(10).join(existing_entities)}
 
-Guidelines for specific scenarios:
+CORE PRINCIPLES:
+1. NEVER infer or guess - only use explicitly stated information
+2. ALWAYS update existing entities instead of creating duplicates
+3. NEVER add properties unless explicitly mentioned
+4. ALWAYS use UPPERCASE for relationship types
+5. ALWAYS create relationship chains that tell a complete story
 
-1. For messages or communications:
-   - Create a Text entity for the message content
-   - Create a Username entity for online identifiers/usernames
-   - Use "sent_to" to connect sender to recipient
-   - Use "sent_by" to connect message to sender
-   - Use "received_by" to connect message to recipient
-   - Do not create email entities unless explicitly mentioned
+ADVANCED REASONING PATTERNS:
 
-2. For updating entities:
-   - Use the "update" action to modify existing entities
-   - Reference existing entities by their exact label
-   - Only create new entities if they don't exist
+1. Event Chains:
+   When multiple events are connected:
+   | Event1 -[LEADS_TO]-> Event2 -[LEADS_TO]-> Event3
+   | Entity -[INVOLVED_IN]-> Event1
+   | Entity -[ALSO_INVOLVED_IN]-> Event2
+   Example: "After receiving the threat, Alice disappeared from the airport"
+   | Text: "Threat message" -[PRECEDES]-> Event: "Alice Disappearance"
+   | Location: "Airport" -[LOCATION_OF]-> Event: "Alice Disappearance"
+
+2. Entity State Changes:
+   When entities change over time:
+   | Entity(before) -[BECOMES]-> Entity(after)
+   | Event -[CAUSES]-> State_Change
+   Example: "Julia's real name was Emily"
+   Action: update
+   | Update Person "Julia" to "Emily"
+   | Preserve all existing relationships
+
+3. Complex Relationships:
+   When entities have multiple relationship layers:
+   | Person1 -[RELATIONSHIP]-> Person2
+   | Person1 -[OWNS]-> Object -[USED_BY]-> Person2
+   Example: "John's black SUV was used to kidnap Alice"
+   | John -[OWNS]-> Vehicle: "SUV"
+   | SUV -[USED_IN]-> Event: "Alice Kidnapping"
+   | Alice -[VICTIM_OF]-> Event
+
+4. Information Flow:
+   For communication and information exchange:
+   | Source -[SENDS]-> Message -[RECEIVED_BY]-> Target
+   | Message -[CONTAINS]-> Information
+   | Message -[RELATES_TO]-> Event
+   Example: "KClown sent a threatening message to Alice"
+   | Username: "KClown" -[SENDS]-> Text: "Threat"
+   | Text -[RECEIVED_BY]-> Person: "Alice"
+   | Text -[TYPE]-> "THREAT"
+
+5. Location Sequences:
+   For tracking movement and locations:
+   | Person -[AT]-> Location1 -[THEN_AT]-> Location2
+   | Location -[PART_OF]-> Larger_Location
+   Example: "Alice left New York airport and went to the parking lot"
+   | Alice -[DEPARTS]-> Location: "New York Airport"
+   | Alice -[ARRIVES_AT]-> Location: "Parking Lot"
+   | "Parking Lot" -[PART_OF]-> "New York Airport"
+
+6. Temporal Relationships:
+   For time-based connections:
+   | Event1 -[BEFORE]-> Event2 -[BEFORE]-> Event3
+   | Entity -[STATE_AT(Event1)]-> State1
+   | Entity -[STATE_AT(Event2)]-> State2
+   Example: "Before disappearing, Alice received a threat"
+   | Text: "Threat" -[PRECEDES]-> Event: "Disappearance"
+   | Alice -[RECEIVES]-> Text
+   | Alice -[VICTIM_OF]-> Event
+
+RESPONSE RULES:
+1. For new information:
+   - Use "create" action
+   - Only include explicitly mentioned properties
+   - Connect to existing entities when possible
+
+2. For updates:
+   - Use "update" action
+   - Only update specifically mentioned properties
+   - Preserve all existing relationships
 
 3. For relationships:
-   - Connect new entities to existing ones when relevant
-   - Use descriptive relationship types
-   - Avoid creating duplicate relationships
-
-You can:
-1. Create new entities using the "create" action
-2. Update existing entities using the "update" action
-3. Create relationships between entities
+   - Use meaningful, descriptive relationship types
+   - Create complete chains of relationships
+   - Connect related events chronologically
 
 Response format must be a JSON object with one of these structures:
 
@@ -376,8 +431,7 @@ Process this text: {text}"""
                             
                             updated_entities.append(existing_node.node)
                             updated_nodes.append(existing_node)
-                            logger.info(f"Updated entity {entity_type}:{current_label} with properties {new_properties}")
-                            
+                                                        
                         except Exception as e:
                             logger.error(f"Error updating visual components: {str(e)}")
                             # Continue with update even if visual update fails

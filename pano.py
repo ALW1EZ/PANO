@@ -77,7 +77,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "4.1.0"
+        self.version = "4.2.0"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -168,6 +168,9 @@ class MainWindow(QMainWindow):
         # Lower part - AI Dock
         ai_dock_widget = QWidget()
         ai_dock_layout = QVBoxLayout(ai_dock_widget)
+        ai_label = QLabel("PANAI")
+        ai_label.setStyleSheet("color: white; font-weight: bold; padding: 5px;")
+        ai_dock_layout.addWidget(ai_label)
         self.ai_dock = AIDock(self.graph_view.graph_manager, self.timeline_manager)
         ai_dock_layout.addWidget(self.ai_dock)
         
