@@ -79,7 +79,7 @@ class PropertyEditor(QDialog):
                 row.addWidget(input_field)
             elif isinstance(self.entity.property_types.get(prop_name), type) and self.entity.property_types[prop_name] == bool:
                 input_field = QCheckBox()
-                input_field.setChecked(self.entity.properties.get(prop_name, True))
+                input_field.setChecked(self.entity.properties.get(bool(prop_name), True))
                 input_field.setStyleSheet("""
                     QCheckBox {
                         color: #CCCCCC;

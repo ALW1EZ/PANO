@@ -20,6 +20,7 @@ from qasync import asyncSlot
 
 import requests
 from bs4 import BeautifulSoup
+import random
 
 from entities import Entity
 from entities.event import Event
@@ -525,7 +526,7 @@ class NodeVisual(QGraphicsObject):
         image_urls = [img['src'] for img in images if 'src' in img.attrs]
         image_urls = [url for url in image_urls if url.startswith("http")]
         if image_urls:
-            return image_urls[0]
+            return random.choice(image_urls)
         else:
             return None
         

@@ -12,6 +12,7 @@ class Username(Entity):
     def init_properties(self):
         self.setup_properties({
             "username": str,
+            "platform": str,
         })
 
     def update_label(self):

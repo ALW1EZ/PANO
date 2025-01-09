@@ -33,4 +33,4 @@ class Website(Entity):
     
     def update_label(self):
         """Update the label based on domain or URL"""
-        self.label = self.format_label(["title", "url"])
+        self.label = self.format_label(["title"])
