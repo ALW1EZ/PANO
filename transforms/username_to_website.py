@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
 from typing import ClassVar, List
-import requests
-import aiohttp
-from bs4 import BeautifulSoup
+from googlesearch import search
+from urllib.parse import urlparse
 from .base import Transform
 from entities.base import Entity
 from entities.website import Website
@@ -11,12 +10,12 @@ from entities.username import Username
 @dataclass
 class UsernameToWebsite(Transform):
     name: ClassVar[str] = "Username to Website"
-    description: ClassVar[str] = "Extract website from username"
+    description: ClassVar[str] = "Extract website from username using Google Search"
     input_types: ClassVar[List[str]] = ["Username"]
     output_types: ClassVar[List[str]] = ["Website"]
     
     async def run(self, entity: Username, graph) -> List[Entity]:
-        """Async implementation using aiohttp"""
+        """Async implementation using googlesearch"""
         if not isinstance(entity, Username):
             return []
         
@@ -24,32 +23,32 @@ class UsernameToWebsite(Transform):
         if not username:
             return []
         
-        # Use run_in_thread for BeautifulSoup parsing which is CPU-bound
+        # Use run_in_thread since googlesearch is synchronous
         return await self.run_in_thread(entity, graph)
     
     def _run_sync(self, entity: Username, graph) -> List[Entity]:
-        """Synchronous implementation for CPU-bound operations"""
+        """Synchronous implementation for Google search operations"""
         username = entity.properties.get("username", "")
-        search_url = f"https://www.bing.com/search?q={username}"
-        
-        # Use requests in the sync version
-        response = requests.get(search_url)
-        soup = BeautifulSoup(response.text, "html.parser")
-        results = soup.find_all("li", class_="b_algo")
         websites = []
         
-        for result in results:
-            url = result.find("a")["href"]
-            domain = url.split("/")[2]
-            title = result.find("h2").text
-            description = result.find("p").text
-            website = Website(properties={
-                "url": url,
-                "domain": domain,
-                "title": title,
-                "description": description,
-                "source": "UsernameToWebsite transform"
-            })
-            websites.append(website)
+        # Search Google for the username, limit to first 10 results
+        try:
+            search_results = search(username, num_results=10, safe=False)
+        except Exception as e:
+            print(f"Error searching for {username}: {e}")
+            return []
+        
+        for url in search_results:
+            try:
+                parsed_url = urlparse(url)
+                domain = parsed_url.netloc
+                website = Website(properties={
+                    "url": url,
+                    "domain": domain,
+                    "source": "UsernameToWebsite transform"
+                })
+                websites.append(website)
+            except Exception as e:
+                continue
         
         return websites
