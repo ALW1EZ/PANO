@@ -18,6 +18,9 @@ import math
 import os
 from qasync import asyncSlot
 
+import requests
+from bs4 import BeautifulSoup
+
 from entities import Entity
 from entities.event import Event
 from transforms import ENTITY_TRANSFORMS
@@ -110,11 +113,7 @@ class NodeVisual(QGraphicsObject):
         
         # Load image if available
         image_path = self.node.properties.get("image")
-        if image_path:
-            if image_path.startswith(("http://", "https://")):
-                self._load_remote_image(image_path)
-            else:
-                self._load_local_image(image_path)
+        self._load_image(image_path)
 
     def _update_layout(self):
         """Update all text and layout"""
@@ -394,11 +393,7 @@ class NodeVisual(QGraphicsObject):
                 
             # Load image if available
             image_path = self.node.properties.get("image")
-            if image_path:
-                if image_path.startswith(("http://", "https://")):
-                    self._load_remote_image(image_path)
-                else:
-                    self._load_local_image(image_path)
+            self._load_image(image_path)
 
     def _delete_node(self):
         """Delete this node"""
@@ -521,7 +516,19 @@ class NodeVisual(QGraphicsObject):
                 os.unlink(tmp_file.name)
         except Exception as e:
             logger.error(f"Failed to load remote image: {e}")
-
+    
+    def _search_image(self, path: str):
+        url = f"https://www.bing.com/images/search?q={path}"
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        images = soup.find_all('img')
+        image_urls = [img['src'] for img in images if 'src' in img.attrs]
+        image_urls = [url for url in image_urls if url.startswith("http")]
+        if image_urls:
+            return image_urls[0]
+        else:
+            return None
+        
     def _load_local_image(self, path: str):
         """Load image from local file"""
         if path.startswith("file://"):
@@ -531,6 +538,22 @@ class NodeVisual(QGraphicsObject):
             if not pixmap.isNull():
                 self.original_pixmap = pixmap
                 self._update_layout()
+    
+    def _load_image(self, image_path: str):
+        if image_path:
+            if image_path.startswith(("http://", "https://")):
+                self._load_remote_image(image_path)
+            elif "/" not in image_path:
+                image_url = self._search_image(image_path)
+                if image_url:
+                    self._load_remote_image(image_url)
+                    self.node.properties["image"] = image_url
+            else:
+                self._load_local_image(image_path)
+        else:
+            self.original_pixmap = None
+            self.image_item.setPixmap(QPixmap())
+            self._update_layout()
 
     def _update_image_scale(self, target_height=None):
         """Update image scale based on current view transform"""
@@ -585,12 +608,7 @@ class NodeVisual(QGraphicsObject):
     def update_label(self):
         """Update the node's visual appearance"""
         image_path = self.node.properties.get("image")
-        if image_path:
-            if image_path.startswith(("http://", "https://")):
-                self._load_remote_image(image_path)
-            else:
-                self._load_local_image(image_path)
-        
+        self._load_image(image_path)
         self._update_layout()
         
         if hasattr(self, 'image_item') and self.image_item.pixmap():

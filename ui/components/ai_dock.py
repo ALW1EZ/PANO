@@ -16,10 +16,12 @@ from ..managers.timeline_manager import TimelineManager
 
 logger = logging.getLogger(__name__)
 
+
 def get_relative_datetime(reference_time: datetime, offset_hours: int = 0) -> str:
     """Calculate a datetime relative to a reference time"""
     result_time = reference_time + timedelta(hours=offset_hours)
     return result_time.strftime("%Y-%m-%d %H:%M")
+
 
 # Basic JSON template for the response format
 RESPONSE_FORMAT = '''{
@@ -57,15 +59,16 @@ RESPONSE_FORMAT = '''{
     ]
 }'''
 
+
 class AIDock(QWidget):
     """AI-powered dock for natural language graph manipulation"""
-    
+
     entities_updated = Signal()
     processing_started = Signal()
     processing_finished = Signal()
-    
-    def __init__(self, graph_manager: Optional[GraphManager] = None, 
-                 timeline_manager: Optional[TimelineManager] = None, 
+
+    def __init__(self, graph_manager: Optional[GraphManager] = None,
+                 timeline_manager: Optional[TimelineManager] = None,
                  parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.graph_manager = graph_manager
@@ -74,23 +77,23 @@ class AIDock(QWidget):
         self._setup_ui()
         self._setup_styles()
         self.last_event_time = None  # Track the last event time for relative references
-        
+
     def _setup_ui(self) -> None:
         """Initialize and configure UI components"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        
+
         self.chat_area = QTextEdit()
         self.chat_area.setReadOnly(True)
         self.chat_area.setVerticalScrollBar(QScrollBar())
         layout.addWidget(self.chat_area)
-        
+
         self.input_area = QLineEdit()
         self.input_area.setPlaceholderText("Describe what happened...")
         self.input_area.returnPressed.connect(self._handle_input)
         layout.addWidget(self.input_area)
-        
+
     def _setup_styles(self) -> None:
         """Apply styles to UI components"""
         self.setStyleSheet("""
@@ -115,34 +118,36 @@ class AIDock(QWidget):
     def _build_entity_info(self) -> Dict[str, Dict[str, Any]]:
         """Build information about available entities and their properties"""
         entity_info = {}
-        
+
         for entity_name, entity_class in ENTITY_TYPES.items():
             try:
                 temp_instance = entity_class()
                 temp_instance.init_properties()
-                
+
                 properties = {
                     prop_name: prop_type.__name__
                     for prop_name, prop_type in temp_instance.property_types.items()
                 }
-                
+
                 entity_info[entity_name] = {
                     'description': entity_class.description,
                     'properties': properties
                 }
-                
+
             except Exception as e:
-                logger.error(f"Error processing entity {entity_name}: {str(e)}")
+                logger.error(
+                    f"Error processing entity {entity_name}: {str(e)}")
                 continue
-            
+
         return entity_info
 
     def _add_message(self, text: str, is_user: bool = True) -> None:
         """Add a message to the chat area"""
         color = "#e0e0e0" if is_user else "#90CAF9"
         prefix = "You:" if is_user else "PANAI:"
-        self.chat_area.append(f'<span style="color: {color}"><b>{prefix}</b> {text}</span>')
-        
+        self.chat_area.append(
+            f'<span style="color: {color}"><b>{prefix}</b> {text}</span>')
+
         scrollbar = self.chat_area.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
@@ -167,13 +172,15 @@ class AIDock(QWidget):
             # Build entity descriptions including existing entities
             type_descriptions = []
             existing_entities = []
-            
+
             for entity_name, info in self.entity_info.items():
-                props = [f"{name} ({type_name})" for name, type_name in info['properties'].items()]
+                props = [f"{name} ({type_name})" for name,
+                         type_name in info['properties'].items()]
                 type_descriptions.append(f"{entity_name}:")
-                type_descriptions.append(f"  Description: {info['description']}")
+                type_descriptions.append(
+                    f"  Description: {info['description']}")
                 type_descriptions.append(f"  Properties: {', '.join(props)}")
-            
+
             # Add information about existing entities with full properties
             detailed_entities = []
             if self.graph_manager:
@@ -254,15 +261,16 @@ Process this text: {text}"""
                                         props = entity.get("properties", {})
                                         if "end_date" in props:
                                             try:
-                                                self.last_event_time = datetime.strptime(props["end_date"], "%Y-%m-%d %H:%M")
+                                                self.last_event_time = datetime.strptime(
+                                                    props["end_date"], "%Y-%m-%d %H:%M")
                                             except (ValueError, TypeError):
                                                 pass
                     return result
                 logger.warning(f"Model {model} failed, trying next model")
-            
+
             logger.error("All models failed")
             return None
-            
+
         except Exception as e:
             logger.error(f"Error in G4F call: {str(e)}")
             return None
@@ -272,14 +280,14 @@ Process this text: {text}"""
         try:
             # First try to find and parse JSON
             json_str = response.strip()
-            
+
             # If response contains a JSON-like structure, prioritize parsing it as an operation
             if '{' in json_str and '}' in json_str:
                 # Find all potential JSON objects
                 json_matches = []
                 stack = []
                 start = -1
-                
+
                 for i, char in enumerate(json_str):
                     if char == '{':
                         if start == -1:
@@ -291,21 +299,25 @@ Process this text: {text}"""
                             if not stack:  # Found complete JSON object
                                 json_matches.append((start, i + 1))
                                 start = -1
-                
+
                 # Try each potential JSON object, starting with the largest
                 json_matches.sort(key=lambda x: x[1] - x[0], reverse=True)
-                
+
                 for start, end in json_matches:
                     try:
                         candidate = json_str[start:end]
                         # Clean up common issues
-                        candidate = re.sub(r',(\s*[}\]])', r'\1', candidate)  # Remove trailing commas
-                        candidate = re.sub(r'"\s*\.\s*}', '"}', candidate)    # Fix period before closing brace
-                        candidate = re.sub(r'"\s*\.\s*,', '",', candidate)    # Fix period before comma
-                        candidate = re.sub(r'\s+', ' ', candidate)            # Normalize whitespace
-                        
+                        # Remove trailing commas
+                        candidate = re.sub(r',(\s*[}\]])', r'\1', candidate)
+                        # Fix period before closing brace
+                        candidate = re.sub(r'"\s*\.\s*}', '"}', candidate)
+                        # Fix period before comma
+                        candidate = re.sub(r'"\s*\.\s*,', '",', candidate)
+                        # Normalize whitespace
+                        candidate = re.sub(r'\s+', ' ', candidate)
+
                         data = json.loads(candidate)
-                        
+
                         # Validate it's an operation
                         if "operations" in data:
                             return data
@@ -313,17 +325,17 @@ Process this text: {text}"""
                             return {"operations": [data]}
                     except json.JSONDecodeError:
                         continue
-            
+
             # If no valid JSON operations found, return as analysis response
             # Clean up the response text
             clean_response = response.strip()
             if clean_response:
                 return clean_response
-                
+
         except Exception as e:
             logger.error(f"Error processing response: {str(e)}")
             logger.debug(f"Full response: {response}")
-            
+
         return None
 
     def _normalize_text(self, text: str) -> str:
@@ -339,20 +351,22 @@ Process this text: {text}"""
         """Calculate similarity score between two sets of words"""
         if not words1 or not words2:
             return 0.0
-            
+
         # Calculate Jaccard similarity
         intersection = len(words1 & words2)
         union = len(words1 | words2)
         jaccard = intersection / union if union > 0 else 0
-        
+
         # Calculate word length similarity
         avg_len1 = sum(len(word) for word in words1) / len(words1)
         avg_len2 = sum(len(word) for word in words2) / len(words2)
         len_ratio = min(avg_len1, avg_len2) / max(avg_len1, avg_len2)
-        
+
         # Calculate overlap coefficient
-        overlap = intersection / min(len(words1), len(words2)) if min(len(words1), len(words2)) > 0 else 0
-        
+        overlap = intersection / \
+            min(len(words1), len(words2)) if min(
+                len(words1), len(words2)) > 0 else 0
+
         # Combine scores with weights
         return (jaccard * 0.4 + len_ratio * 0.2 + overlap * 0.4)
 
@@ -361,30 +375,30 @@ Process this text: {text}"""
         entity_type = entity_type.lower()
         normalized_label = self._normalize_text(label)
         label_words = set(normalized_label.split())
-        
+
         # Try exact match first with consistent key format
         key = f"{entity_type}:{label.lower()}"
         if key in nodes:
             return nodes[key]
-        
+
         best_match = None
         best_score = 0.0
-        
+
         # Try finding best match
         for node_key, node in nodes.items():
             try:
                 # Ensure consistent key format for comparison
                 node_type, node_label = node_key.lower().split(':', 1)
-                
+
                 if node_type != entity_type:
                     continue
-                    
+
                 normalized_node_label = self._normalize_text(node_label)
                 node_words = set(normalized_node_label.split())
-                
+
                 # Calculate similarity score
                 score = self._get_similarity_score(label_words, node_words)
-                
+
                 # For events, boost score if they share significant words
                 if entity_type == "event":
                     # Get the most significant (longest) words from each label
@@ -392,21 +406,21 @@ Process this text: {text}"""
                     sig_words2 = {w for w in node_words if len(w) > 4}
                     if sig_words1 & sig_words2:
                         score *= 1.5
-                
+
                 # For persons, boost score if first words match
                 elif entity_type == "person" and label_words and node_words:
                     if list(label_words)[0] == list(node_words)[0]:
                         score *= 1.5
-                
+
                 # Update best match if score is high enough
                 threshold = 0.5 if entity_type == "event" else 0.7
                 if score > best_score and score >= threshold:
                     best_score = score
                     best_match = node
-                    
+
             except ValueError:
                 continue  # Skip malformed keys
-        
+
         return best_match
 
     def _update_node_visuals(self, node) -> None:
@@ -415,11 +429,11 @@ Process this text: {text}"""
             # Update main label
             if hasattr(node, 'label'):
                 node.label.setPlainText(node.node.label)
-            
+
             # Update type label
             if hasattr(node, 'type_label'):
                 node.type_label.setPlainText(node.node.type_label)
-            
+
             # Update properties display
             if hasattr(node, 'properties_item'):
                 props_text = []
@@ -428,14 +442,14 @@ Process this text: {text}"""
                         props_text.append(f"{key}: {value}")
                 if props_text:
                     node.properties_item.setPlainText('\n'.join(props_text))
-            
+
             # Update geometry and visuals
             node.update()
             if hasattr(node, 'updateGeometry'):
                 node.updateGeometry()
             if hasattr(node, '_update_layout'):
                 node._update_layout()
-                
+
         except Exception as e:
             logger.error(f"Error updating visual components: {str(e)}")
 
@@ -457,49 +471,51 @@ Process this text: {text}"""
         try:
             updated_entities = []
             updated_nodes = []
-            
+
             if not self.graph_manager:
                 return {'entities': [], 'nodes': [], 'edges': []}
-            
+
             # Create lookup for existing entities with consistent key format
             existing_entities = {}
             for node in self.graph_manager.nodes.values():
                 # Ensure consistent key format
                 key = f"{node.node.type}:{node.node.label}".lower()
                 existing_entities[key] = node
-            
+
             # Process updates
             for update in data.get("updates", []):
                 try:
                     entity_type = update["type"]
                     current_label = update["current_label"]
                     new_properties = update.get("new_properties", {})
-                    
+
                     # Find existing entity using flexible matching
-                    existing_node = self._find_matching_entity(entity_type, current_label, existing_entities)
-                    
+                    existing_node = self._find_matching_entity(
+                        entity_type, current_label, existing_entities)
+
                     if existing_node:
                         # Update properties
                         existing_node.node.properties.update(new_properties)
                         existing_node.node.update_label()
-                        
+
                         # Update visuals
                         self._update_node_visuals(existing_node)
-                        
+
                         updated_entities.append(existing_node.node)
                         updated_nodes.append(existing_node)
                     else:
-                        logger.warning(f"Could not find entity {entity_type}:{current_label} to update")
-                    
+                        logger.warning(
+                            f"Could not find entity {entity_type}:{current_label} to update")
+
                 except Exception as e:
                     logger.error(f"Error updating entity: {str(e)}")
                     continue
-            
+
             # Refresh scene
             self._refresh_scene(updated_nodes)
-            
+
             return {'entities': updated_entities, 'nodes': updated_nodes, 'edges': []}
-            
+
         except Exception as e:
             logger.error(f"Error in update_entities: {str(e)}")
             return {'entities': [], 'nodes': [], 'edges': []}
@@ -511,7 +527,7 @@ Process this text: {text}"""
             nodes = []
             edges = []
             edge_pairs = set()
-            
+
             # First pass: collect existing entities with consistent key format
             existing_entities = {}
             if self.graph_manager:
@@ -519,45 +535,51 @@ Process this text: {text}"""
                     # Ensure consistent key format
                     key = f"{node.node.type}:{node.node.label}".lower()
                     existing_entities[key] = node
-            
+
             # Create entities
             for i, entity_data in enumerate(data["entities"]):
                 try:
                     entity_type = entity_data["type"]
                     if entity_type not in ENTITY_TYPES:
                         continue
-                    
+
                     # Create a temporary entity to get its label
                     temp_entity = ENTITY_TYPES[entity_type]()
-                    
+
                     # Update properties
-                    temp_entity.properties.update({k: v for k, v in entity_data.get("properties", {}).items() if v and v != "Unknown"})
+                    temp_entity.properties.update({k: v for k, v in entity_data.get(
+                        "properties", {}).items() if v and v != "Unknown"})
                     temp_entity.update_label()
-                    
+
                     # Check if entity already exists using flexible matching
-                    existing_node = self._find_matching_entity(entity_type, temp_entity.label, existing_entities)
-                    
+                    existing_node = self._find_matching_entity(
+                        entity_type, temp_entity.label, existing_entities)
+
                     if existing_node:
                         # Use existing entity but update its properties
-                        existing_node.node.properties.update(temp_entity.properties)
+                        existing_node.node.properties.update(
+                            temp_entity.properties)
                         existing_node.node.update_label()
                         self._update_node_visuals(existing_node)
                         nodes.append(existing_node)
                         entities.append(existing_node.node)
                         # Update lookup with new label if it changed
-                        key = f"{existing_node.node.type}:{existing_node.node.label}".lower()
+                        key = f"{existing_node.node.type}:{existing_node.node.label}".lower(
+                        )
                         existing_entities[key] = existing_node
                     else:
                         # Create new entity
                         entity = ENTITY_TYPES[entity_type]()
                         entity.properties.update(temp_entity.properties)
                         entity.update_label()
-                        
+
                         # Position in circular layout
-                        angle = (2 * math.pi * len(nodes)) / max(len(data["entities"]), 1)
+                        angle = (2 * math.pi * len(nodes)) / \
+                            max(len(data["entities"]), 1)
                         radius = 200
-                        pos = QPointF(radius * math.cos(angle), radius * math.sin(angle))
-                        
+                        pos = QPointF(radius * math.cos(angle),
+                                      radius * math.sin(angle))
+
                         node = self.graph_manager.add_node(entity, pos)
                         self._update_node_visuals(node)
                         entities.append(entity)
@@ -565,18 +587,18 @@ Process this text: {text}"""
                         # Add to lookup
                         key = f"{entity.type}:{entity.label}".lower()
                         existing_entities[key] = node
-                    
+
                 except Exception as e:
                     logger.error(f"Error creating entity: {str(e)}")
                     continue
-            
+
             # Create connections
             for conn in data.get("connections", []):
                 try:
                     # Try to get source and target nodes
                     source = None
                     target = None
-                    
+
                     # Try index-based connection first
                     try:
                         from_idx = int(conn["from"])
@@ -588,21 +610,22 @@ Process this text: {text}"""
                         # If not indices, try to find nodes by label
                         from_label = str(conn["from"])
                         to_label = str(conn["to"])
-                        
+
                         # Find nodes by label
                         for node in nodes:
                             if node.node.label == from_label:
                                 source = node
                             elif node.node.label == to_label:
                                 target = node
-                    
+
                     if source and target:
                         relationship = conn.get("relationship", "")
-                        
+
                         if source.node.id == target.node.id:
                             continue
-                            
-                        edge_pair = (source.node.id, target.node.id, relationship)
+
+                        edge_pair = (source.node.id,
+                                     target.node.id, relationship)
                         if edge_pair not in edge_pairs:
                             edge = self.graph_manager.add_edge(
                                 source.node.id,
@@ -612,16 +635,16 @@ Process this text: {text}"""
                             if edge:
                                 edges.append(edge)
                                 edge_pairs.add(edge_pair)
-                            
+
                 except Exception as e:
                     logger.error(f"Error creating connection: {str(e)}")
                     continue
-            
+
             # Refresh scene
             self._refresh_scene(nodes)
-            
+
             return {'entities': entities, 'nodes': nodes, 'edges': edges}
-            
+
         except Exception as e:
             logger.error(f"Error in create_entities: {str(e)}")
             return {'entities': [], 'nodes': [], 'edges': []}
@@ -631,29 +654,30 @@ Process this text: {text}"""
         text = self.input_area.text().strip()
         if not text:
             return
-            
+
         # Check for reset command
         if text.lower() == "/reset":
             self.chat_area.clear()
             self.last_event_time = None
             self.input_area.clear()
             return
-            
+
         # Clear previous conversation
         self.chat_area.clear()
-        
+
         # Show current question
         self._add_message(text, True)
         self.input_area.clear()
         self.processing_started.emit()
-        
+
         async def process():
             try:
                 result = await self._process_with_g4f(text)
                 if not result:
-                    self._add_message("Sorry, I couldn't understand that. Please try rephrasing.", False)
+                    self._add_message(
+                        "Sorry, I couldn't understand that. Please try rephrasing.", False)
                     return
-                
+
                 if isinstance(result, str):
                     # Handle analysis response
                     self._add_message(result, False)
@@ -661,7 +685,7 @@ Process this text: {text}"""
                     # Handle operations
                     all_entities = []
                     all_edges = []
-                    
+
                     # Process each operation in sequence
                     for operation in result.get("operations", []):
                         action = operation.get("action")
@@ -672,25 +696,28 @@ Process this text: {text}"""
                         elif action == "update":
                             op_result = self._update_entities(operation)
                             all_entities.extend(op_result['entities'])
-                    
+
                     if all_entities:
                         self.entities_updated.emit()
-                        
+
                         # Report all changes
                         self._add_message("Changes made:", False)
                         for entity in all_entities:
-                            self._add_message(f"- {entity.type}: {entity.label}", False)
-                        
+                            self._add_message(
+                                f"- {entity.type}: {entity.label}", False)
+
                         if all_edges:
                             self._add_message("\nRelationships:", False)
                             for edge in all_edges:
                                 source = edge.source.node.label
                                 target = edge.target.node.label
                                 rel = edge.relationship
-                                self._add_message(f"- {source} {rel} {target}", False)
+                                self._add_message(
+                                    f"- {source} {rel} {target}", False)
                     else:
-                        self._add_message("No changes were made. Please try rephrasing.", False)
+                        self._add_message(
+                            "No changes were made. Please try rephrasing.", False)
             finally:
                 self.processing_finished.emit()
-                
-        asyncio.create_task(process()) 
+
+        asyncio.create_task(process())
