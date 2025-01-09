@@ -514,8 +514,17 @@ class NodeVisual(QGraphicsObject):
     def _load_remote_image(self, url: str):
         """Load image from URL"""
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".svg") as tmp_file:
-                urllib.request.urlretrieve(url, tmp_file.name)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5"
+            }
+            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+                response = requests.get(url, headers=headers, stream=True)
+                response.raise_for_status()
+                with open(tmp_file.name, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
                 self._load_local_image(tmp_file.name)
                 os.unlink(tmp_file.name)
         except Exception as e:
