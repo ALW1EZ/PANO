@@ -132,7 +132,7 @@ class NodeVisual(QGraphicsObject):
         # Update properties
         prop_text = []
         for key, value in self.node.get_display_properties().items():
-            if key == "description":
+            if key == "description" or key == "url" or key == "title":
                 if len(value) > 30:
                     value = value[:30] + "..."
             if key == 'notes':
