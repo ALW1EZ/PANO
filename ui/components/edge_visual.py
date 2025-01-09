@@ -20,6 +20,8 @@ class EdgeVisual(QGraphicsItem):
         self.text_item = QGraphicsTextItem(self)
         self.text_item.setDefaultTextColor(self.style.label_color)
         self.text_item.setPlainText(self.relationship)
+        self.text_item.setAcceptHoverEvents(False)  # Don't accept hover events
+        self.text_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresParentOpacity)
         
         self.setAcceptHoverEvents(True)
         self.setZValue(-1)  # Draw edges below nodes
@@ -221,60 +223,17 @@ class EdgeVisual(QGraphicsItem):
         dialog = EdgePropertiesDialog(self, self.scene().views()[0])
         if dialog.exec() == EdgePropertiesDialog.DialogCode.Accepted:
             values = dialog.get_values()
-            self.relationship = values['relationship']
-            self.style.style = values['line_style']
-            self.text_item.setPlainText(self.relationship)
-            self.updatePosition()
-            self.update()
-        super().mouseDoubleClickEvent(event) 
-
-    def contextMenuEvent(self, event):
-        """Handle right-click context menu"""
-        menu = QMenu()
-        menu.setStyleSheet("""
-            QMenu {
-                background-color: #2D2D30;
-                color: #CCCCCC;
-                border: 1px solid #3F3F46;
-            }
-            QMenu::item {
-                padding: 5px 20px;
-            }
-            QMenu::item:selected {
-                background-color: #3F3F46;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #3F3F46;
-                margin: 4px 0px;
-            }
-        """)
-        
-        # Add menu items
-        edit_action = menu.addAction("Edit")
-        edit_action.triggered.connect(self._edit_properties)
-        
-        delete_action = menu.addAction("Delete")
-        delete_action.triggered.connect(self._delete_edge)
-        
-        menu.exec(event.screenPos())
-        
-    def _edit_properties(self):
-        """Edit edge properties"""
-        dialog = EdgePropertiesDialog(self, self.scene().views()[0])
-        if dialog.exec() == EdgePropertiesDialog.DialogCode.Accepted:
-            values = dialog.get_values()
-            self.relationship = values['relationship']
-            self.style.style = values['line_style']
-            self.text_item.setPlainText(self.relationship)
-            self.updatePosition()
-            self.update()
-            
-    def _delete_edge(self):
-        """Delete this edge"""
-        if self.scene():
-            view = self.scene().views()[0]
-            if hasattr(view, 'graph_manager'):
-                edge_id = f"{self.source.node.id}->{self.target.node.id}"
-                view.graph_manager.edges.pop(edge_id, None)
-                self.scene().removeItem(self) 
+            if values.get('delete', False):
+                if self.scene():
+                    view = self.scene().views()[0]
+                    if hasattr(view, 'graph_manager'):
+                        edge_id = f"{self.source.node.id}->{self.target.node.id}"
+                        view.graph_manager.edges.pop(edge_id, None)
+                        self.scene().removeItem(self)
+            else:
+                self.relationship = values['relationship']
+                self.style.style = values['line_style']
+                self.text_item.setPlainText(self.relationship)
+                self.updatePosition()
+                self.update()
+        event.accept()  # Accept the event to prevent further propagation 

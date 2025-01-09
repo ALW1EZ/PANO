@@ -64,9 +64,18 @@ class EdgePropertiesDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok | 
             QDialogButtonBox.StandardButton.Cancel
         )
+        
+        # Add delete button
+        self.delete_button = button_box.addButton("Delete", QDialogButtonBox.ButtonRole.DestructiveRole)
+        self.delete_button.setStyleSheet("background-color: #C42B1C;")  # Red color for delete
+        self.delete_button.clicked.connect(self._handle_delete)
+        
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+        
+        # Store delete flag
+        self._delete_clicked = False
         
         # Apply dark theme
         self.setStyleSheet("""
@@ -120,11 +129,17 @@ class EdgePropertiesDialog(QDialog):
             }
         """)
         
+    def _handle_delete(self):
+        """Handle delete button click"""
+        self._delete_clicked = True
+        self.accept()
+        
     def get_values(self):
         """Get the updated values"""
         return {
             'relationship': self.relationship_input.text(),
-            'line_style': self._get_line_style()
+            'line_style': self._get_line_style(),
+            'delete': self._delete_clicked
         }
         
     def _get_line_style(self) -> Qt.PenStyle:

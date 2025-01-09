@@ -128,7 +128,7 @@ class GraphView(QGraphicsView):
         """Handle mouse press events"""
         if event.button() == Qt.MouseButton.RightButton:
             item = self.itemAt(event.pos())
-            if item is None:
+            if item is None or isinstance(item, EdgeVisual):
                 self._start_panning(event)
             else:
                 super().mousePressEvent(event)

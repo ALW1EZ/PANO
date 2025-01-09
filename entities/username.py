@@ -13,6 +13,7 @@ class Username(Entity):
         self.setup_properties({
             "username": str,
             "platform": str,
+            "link": str,
         })
 
     def update_label(self):
