@@ -77,7 +77,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "4.7.10"
+        self.version = "4.8.1"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -381,25 +381,10 @@ class MainWindow(QMainWindow):
                 
                 edges_data.append(edge_data)
 
-            # Save timeline events
-            timeline_events = []
-            timeline_visual = self.timeline_manager.timeline_dock.findChild(TimelineVisual)
-            if timeline_visual:
-                for event in timeline_visual.events:
-                    event_data = {
-                        'title': event.title,
-                        'description': event.description,
-                        'start_time': event.start_time.isoformat(),
-                        'end_time': event.end_time.isoformat(),
-                        'color': event.color.name()
-                    }
-                    timeline_events.append(event_data)
-
             # Create investigation data
             investigation_data = {
                 'nodes': nodes_data,
-                'edges': edges_data,
-                'timeline_events': timeline_events
+                'edges': edges_data
             }
 
             # Save to file
@@ -444,8 +429,10 @@ class MainWindow(QMainWindow):
                 properties = node_data['properties']
                 properties['_id'] = node_data['id']  # Set ID in properties before creating entity
                 entity = entity_type.from_dict(properties)
+                entity.update_label()  # Ensure label is properly set
                 pos = QPointF(node_data['pos']['x'], node_data['pos']['y'])
                 node = self.graph_view.graph_manager.add_node(entity, pos)
+                node.update_label()  # Update the visual representation
                 nodes[node_data['id']] = node
 
             # Load edges with all properties
@@ -474,18 +461,6 @@ class MainWindow(QMainWindow):
                 
                 if edge and 'properties' in edge_data:
                     edge.properties = edge_data['properties']
-
-            # Load timeline events
-            if 'timeline_events' in investigation_data and timeline_visual:
-                for event_data in investigation_data['timeline_events']:
-                    event = TimelineEvent(
-                        title=event_data['title'],
-                        description=event_data['description'],
-                        start_time=datetime.fromisoformat(event_data['start_time']),
-                        end_time=datetime.fromisoformat(event_data['end_time']),
-                        color=QColor(event_data['color'])
-                    )
-                    timeline_visual.add_event(event)
 
             self.current_file = file_name
             self.statusBar().showMessage(f"Investigation loaded from {file_name}", 3000)

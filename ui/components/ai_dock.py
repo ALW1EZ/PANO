@@ -499,8 +499,8 @@ Process this text: {text}"""
                         existing_node.node.properties.update(new_properties)
                         existing_node.node.update_label()
 
-                        # Update visuals
-                        self._update_node_visuals(existing_node)
+                        # Update through graph manager to ensure all components are updated
+                        self.graph_manager.update_node(existing_node.node.id, existing_node.node)
 
                         updated_entities.append(existing_node.node)
                         updated_nodes.append(existing_node)
@@ -561,7 +561,10 @@ Process this text: {text}"""
                         existing_node.node.properties.update(
                             temp_entity.properties)
                         existing_node.node.update_label()
-                        self._update_node_visuals(existing_node)
+                        
+                        # Update through graph manager to ensure all components are updated
+                        self.graph_manager.update_node(existing_node.node.id, existing_node.node)
+                        
                         nodes.append(existing_node)
                         entities.append(existing_node.node)
                         # Update lookup with new label if it changed
