@@ -77,7 +77,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "4.9.3"
+        self.version = "4.9.4"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -201,9 +201,6 @@ class MainWindow(QMainWindow):
         self.load_action.setShortcut("Ctrl+O")
         self.load_action.setStatusTip("Load investigation")
         self.load_action.triggered.connect(self.load_investigation)
-        
-        # Create status bar
-        self.statusBar()
     
     def setup_toolbar(self):
         """Setup the toolbar with search and basic actions"""
@@ -463,7 +460,6 @@ class MainWindow(QMainWindow):
                     edge.properties = edge_data['properties']
 
             self.current_file = file_name
-            self.statusBar().showMessage(f"Investigation loaded from {file_name}", 3000)
             logger.info(f"Investigation loaded from {file_name}")
 
         except Exception as e:
@@ -479,7 +475,6 @@ class MainWindow(QMainWindow):
                 timeline_visual.events.clear()
                 timeline_visual.update()
             self.current_file = None
-            self.statusBar().showMessage("New investigation created", 3000)
             logger.info("New investigation created")
 
     def apply_circular_layout(self):
