@@ -2,10 +2,12 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QListWidgetItem,
     QLabel, QHBoxLayout, QFrame
 )
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QPixmap, QIcon, QColor, QPalette
+from PySide6.QtCore import Qt, QSize, QUrl
+from PySide6.QtGui import QPixmap, QIcon, QColor, QPalette, QDesktopServices
 import asyncio
 from qasync import asyncSlot
+import os
+from ui.views.image_viewer import ImageViewer
 
 class NodeListItem(QWidget):
     def __init__(self, node, parent=None):
@@ -169,6 +171,7 @@ class NodeList(QListWidget):
         self._destroyed = False
         self.graph_manager = graph_manager
         self._node_items = {}  # Track node_id -> QListWidgetItem mapping
+        self._image_viewers = {}  # Track node_id -> ImageViewer mapping
         
         self.setStyleSheet("""
             QListWidget {
@@ -187,10 +190,14 @@ class NodeList(QListWidget):
             QListWidget::item:hover {
                 background-color: #353535;
             }
+            QScrollBar {
+                background-color: #2d2d2d;
+                border: none;
+            }
         """)
         self.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         self.setHorizontalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        self.setUniformItemSizes(True)  # Enable uniform sizes for better performance
+        self.setUniformItemSizes(True)
         self.setSpacing(4)
         
         # Connect signals
@@ -199,6 +206,10 @@ class NodeList(QListWidget):
         
     def closeEvent(self, event):
         self._destroyed = True
+        # Close all open image viewers
+        for viewer in self._image_viewers.values():
+            viewer.close()
+        self._image_viewers.clear()
         self._node_items.clear()
         super().closeEvent(event)
         
@@ -259,13 +270,55 @@ class NodeList(QListWidget):
             pass
             
     def _on_item_double_clicked(self, item):
-        """Handle item double click - edit properties"""
+        """Handle item double click based on entity type"""
         if self._destroyed:
             return
             
         try:
             widget = self.itemWidget(item)
-            if widget:
+            if not widget:
+                return
+                
+            # Get entity type and node id
+            entity_type = widget.node.node.type_label
+            node_id = widget.node.node.id
+            
+            # Handle different entity types
+            if entity_type == 'WEBSITE':
+                # Open URL in browser
+                url = widget.node.node.properties.get('url')
+                if url:
+                    QDesktopServices.openUrl(QUrl(url))
+            elif entity_type == 'USERNAME':
+                # Open username in browser
+                username_link = widget.node.node.properties.get('link')
+                if username_link:
+                    QDesktopServices.openUrl(QUrl(username_link))
+            elif entity_type == 'IMAGE':
+                # Check for image property
+                image_path = widget.node.node.properties.get('image')
+                if image_path:
+                    # Check if viewer already exists for this node
+                    if node_id in self._image_viewers and not self._image_viewers[node_id].isHidden():
+                        # Bring existing viewer to front
+                        self._image_viewers[node_id].raise_()
+                        self._image_viewers[node_id].activateWindow()
+                    else:
+                        # Create and show new image viewer
+                        viewer = ImageViewer(image_path, f"PANO - {widget.node.node.get_main_display()}")
+                        viewer.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+                        
+                        # Connect close event to remove from tracking
+                        def on_viewer_closed():
+                            if node_id in self._image_viewers:
+                                del self._image_viewers[node_id]
+                        
+                        viewer.destroyed.connect(on_viewer_closed)
+                        self._image_viewers[node_id] = viewer
+                        viewer.show()
+            else:
+                # Default behavior - edit properties
                 widget.node._edit_properties()
+        
         except RuntimeError:
             pass 

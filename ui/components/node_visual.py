@@ -580,7 +580,7 @@ class NodeVisual(QGraphicsObject):
                 image_urls = [img['src'] for img in images if 'src' in img.attrs]
                 image_urls = [url for url in image_urls if url.startswith("http")]
                 if image_urls:
-                    return random.choice(image_urls)
+                    return random.choice(image_urls).split("?")[0]
                 else:
                     return None
         

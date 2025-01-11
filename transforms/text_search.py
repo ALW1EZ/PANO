@@ -101,7 +101,7 @@ class TextSearch(Transform):
                     if 'src' in img.attrs and img['src'].startswith("http"):
                         results.append({
                             "title": img.get('alt', ''),
-                            "url": img['src'],
+                            "url": img['src'].split("?")[0],
                             "description": img.get('alt', ''),
                             "source": "Bing Images"
                         })
