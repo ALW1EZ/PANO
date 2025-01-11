@@ -3,12 +3,12 @@ from typing import ClassVar, List
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
-import logging
 import json
 import re
 from .base import Transform
 from entities.base import Entity
 from entities.image import Image
+from ui.managers.status_manager import StatusManager
 
 @dataclass
 class ReverseImage(Transform):
@@ -23,12 +23,27 @@ class ReverseImage(Transform):
         if not image_url:
             return []
         
-        return await self.run_in_thread(entity, graph)
+        status = StatusManager.get()
+        operation_id = status.start_loading("Reverse Image")
+        
+        try:
+            results = await self.run_in_thread(entity, graph)
+            if results:
+                status.set_text(f"Reverse Image: Found {len(results)} similar images")
+            else:
+                status.set_text("Reverse Image: No similar images found")
+            return results
+        except Exception as e:
+            status.set_text("Reverse Image: Search failed")
+            return []
+        finally:
+            status.stop_loading(operation_id)
     
     def _run_sync(self, entity: Image, graph) -> List[Entity]:
         """Synchronous implementation for CPU-bound operations"""
         image_url = entity.properties.get("image", "")
         similar_images = []
+        status = StatusManager.get()
         
         yandex_url = "https://yandex.com/images/search"
         params = {
@@ -54,7 +69,7 @@ class ReverseImage(Transform):
             response = requests.get(yandex_url, params=params, headers=headers, allow_redirects=True)
             
             if response.status_code != 200:
-                print(f"Failed to get response from Yandex: {response.status_code}")
+                status.set_text("Reverse Image: Failed to get response from Yandex")
                 return []
             
             soup = BeautifulSoup(response.text, "html.parser")
@@ -110,6 +125,6 @@ class ReverseImage(Transform):
                     continue
 
         except Exception as e:
-            print(f"Error during reverse image search: {str(e)}")
+            status.set_text("Reverse Image: Search failed")
         
         return similar_images

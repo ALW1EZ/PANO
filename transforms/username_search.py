@@ -7,6 +7,7 @@ from .base import Transform
 from entities.base import Entity
 from entities.website import Website
 from entities.username import Username
+from ui.managers.status_manager import StatusManager
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -127,9 +128,14 @@ class UsernameToWebsite(Transform):
         username = entity.properties.get("username", "")
         
         # Collect search results
+        status = StatusManager.get()
+        operation_id = status.start_loading("Username Search")
+        status.set_text("Searching for username...")
         search_results = []
         search_results.extend(self._search_bing(username))
         search_results.extend(self._search_google(username))
+        status.set_text(f"Username search done with {len(search_results)} results")
+        status.stop_loading(operation_id)
 
         # Process results and create entities
         entities = []

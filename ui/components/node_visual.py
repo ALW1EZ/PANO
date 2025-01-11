@@ -29,7 +29,7 @@ from transforms import ENTITY_TRANSFORMS
 from ..styles.node_style import NodeStyle
 from ..dialogs.property_editor import PropertyEditor
 from ..managers.timeline_manager import TimelineEvent
-logger = logging.getLogger(__name__)
+from ui.managers.status_manager import StatusManager
 
 class NodeVisualState(Enum):
     """Enum for node visual states"""
@@ -396,19 +396,27 @@ class NodeVisual(QGraphicsObject):
             for key, value in updated_properties.items():
                 self.node.properties[key] = value
             
-            # Update visual representation
-            self._update_layout()
+            # Update the entity's label
+            self.node.update_label()
+            
+            # Create task for updating the node
+            asyncio.create_task(self._update_node_after_edit())
             
             # Notify graph manager of the update
             scene = self.scene()
             if scene and hasattr(scene.views()[0], 'graph_manager'):
                 graph_manager = scene.views()[0].graph_manager
                 graph_manager.update_node(self.node.id, self.node)
-                
-            # Load image if available
-            image_path = self.node.properties.get("image")
-            if image_path:
-                self.update_label()  # This is already an asyncSlot, no need to create_task
+
+    async def _update_node_after_edit(self):
+        """Update node after properties edit"""
+        # Load image if available
+        image_path = self.node.properties.get("image")
+        if image_path:
+            await self._load_image(image_path)
+        
+        # Update layout after image is loaded
+        self._update_layout()
 
     def _delete_node(self):
         """Delete this node"""
@@ -533,6 +541,8 @@ class NodeVisual(QGraphicsObject):
             }
             with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
                 async with aiohttp.ClientSession() as session:
+                    status = StatusManager.get()
+                    status.set_text(f"Loading remote image from {url}...")
                     async with session.get(url, headers=headers) as response:
                         response.raise_for_status()
                         with open(tmp_file.name, 'wb') as f:
@@ -544,11 +554,13 @@ class NodeVisual(QGraphicsObject):
                 self._load_local_image(tmp_file.name)
                 os.unlink(tmp_file.name)
         except Exception as e:
-            logger.error(f"Failed to load remote image: {e}")
+            status.set_text(f"Failed to load remote image: {e}")
     
     async def _search_image(self, path: str):
         url = f"https://www.bing.com/images/search?q={path}"
         async with aiohttp.ClientSession() as session:
+            status = StatusManager.get()
+            status.set_text(f"Searching for image {path}...")
             async with session.get(url) as response:
                 text = await response.text()
                 soup = BeautifulSoup(text, 'html.parser')

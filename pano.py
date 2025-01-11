@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import sys
-from PySide6.QtCore import Qt, QPointF, QMimeData, QSize
+from PySide6.QtCore import Qt, QPointF, QMimeData, QSize, QTimer
 from PySide6.QtGui import QAction, QDrag, QIcon, QColor
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QToolBar,
@@ -20,6 +20,7 @@ from ui.components.timeline_visual import TimelineVisual, TimelineEvent
 from ui.managers.layout_manager import LayoutManager
 from ui.managers.map_manager import MapManager
 from ui.managers.timeline_manager import TimelineManager
+from ui.managers.status_manager import StatusManager
 from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
 from ui.components.ai_dock import AIDock
 
@@ -66,7 +67,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "5.2.0"
+        self.version = "5.3.0"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -143,12 +144,12 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         
-        # Create about label with double click handling
-        about_label = QLabel("About")
-        about_label.setStyleSheet("color: gray; font-weight: bold; padding: 5px;")
-        about_label.mouseDoubleClickEvent = lambda e: self.show_about_dialog()
-        self.status_bar.addPermanentWidget(about_label)
+        # Initialize global status manager
+        StatusManager.initialize(self.status_bar)
         
+        # Connect about label double click
+        StatusManager.get().about_label.mouseDoubleClickEvent = lambda e: self.show_about_dialog()
+
     def show_about_dialog(self):
         """Show floating about dialog"""
         dialog = QDialog(self)
@@ -400,6 +401,9 @@ class MainWindow(QMainWindow):
             self.current_file = file_name
 
         try:
+            status = StatusManager.get()
+            status.set_text("Saving investigation...")
+            
             # Get graph data
             nodes_data = []
             edges_data = []
@@ -449,11 +453,11 @@ class MainWindow(QMainWindow):
             async with aiofiles.open(self.current_file, 'w') as f:
                 await f.write(json.dumps(investigation_data, indent=2, cls=DateTimeEncoder))
 
-            self.statusBar().showMessage(f"Investigation saved to {self.current_file}", 3000)
-            logger.info(f"Investigation saved to {self.current_file}")
+            status.set_text(f"Investigation saved to {self.current_file}")
 
         except Exception as e:
             logger.error(f"Failed to save investigation: {str(e)}", exc_info=True)
+            status.set_text("Failed to save investigation")
             QMessageBox.critical(self, "Save Error", f"Failed to save investigation: {str(e)}")
     
     @asyncSlot()
@@ -469,6 +473,9 @@ class MainWindow(QMainWindow):
             return
 
         try:
+            status = StatusManager.get()
+            status.set_text("Loading investigation...")
+            
             async with aiofiles.open(file_name, 'r') as f:
                 content = await f.read()
                 investigation_data = json.loads(content)
@@ -521,12 +528,13 @@ class MainWindow(QMainWindow):
                     edge.properties = edge_data['properties']
 
             self.current_file = file_name
-            logger.info(f"Investigation loaded from {file_name}")
+            status.set_text(f"Investigation loaded from {file_name}")
 
         except Exception as e:
             logger.error(f"Failed to load investigation: {str(e)}", exc_info=True)
+            status.set_text("Failed to load investigation")
             QMessageBox.critical(self, "Load Error", f"Failed to load investigation: {str(e)}")
-    
+
     def view_timeline(self):
         """View the timeline"""
         # Show/Hide the timeline dock

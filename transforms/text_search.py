@@ -6,6 +6,7 @@ from entities.website import Website
 from entities.username import Username
 from entities.image import Image
 from entities.text import Text
+from ui.managers.status_manager import StatusManager
 
 import requests
 from bs4 import BeautifulSoup
@@ -157,10 +158,16 @@ class TextSearch(Transform):
         text = entity.properties.get("text", "")
         
         # Collect search results
+        status = StatusManager.get()
+        status.set_text("Searching for text...")
+        operation_id = status.start_loading("Text Search")
+
         search_results = []
         search_results.extend(self._search_bing(text))
         search_results.extend(self._search_google(text))
         search_results.extend(self._search_image(text))
+        status.set_text(f"Searching for text done with {len(search_results)} results")
+        status.stop_loading(operation_id)
 
         # Process results and create entities
         entities = []
