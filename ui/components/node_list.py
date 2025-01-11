@@ -195,8 +195,8 @@ class NodeList(QListWidget):
                 border: none;
             }
         """)
-        self.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        self.setHorizontalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        self.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerItem)
+        self.setHorizontalScrollMode(QListWidget.ScrollMode.ScrollPerItem)
         self.setUniformItemSizes(True)
         self.setSpacing(4)
         
