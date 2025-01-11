@@ -129,14 +129,16 @@ class NodeVisual(QGraphicsObject):
         """Calculate sizes of all content elements"""
         # Update labels
         self.type_label.setPlainText(self.node.type_label)
-        self.label.setPlainText(self.node.get_main_display())
+        if len(self.node.get_main_display()) > 30:
+            self.label.setPlainText(self.node.get_main_display()[:30] + "...")
+        else:
+            self.label.setPlainText(self.node.get_main_display())
         
         # Update properties
         prop_text = []
         for key, value in self.node.get_display_properties().items():
-            if key == "description" or key == "url" or key == "title":
-                if len(value) > 30:
-                    value = value[:30] + "..."
+            if len(value) > 30:
+                value = value[:30] + "..."
             if key == 'notes':
                 value = f"\n{value}"
             prop_text.append(f"{key.upper()}: {value}")
