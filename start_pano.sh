@@ -23,7 +23,7 @@ if [ -f "requirements.txt" ]; then
     pip install -r requirements.txt
 else
     echo -e "${BLUE}Installing required packages...${NC}"
-    pip install PySide6 networkx qasync scipy folium aiofiles requests bs4 googlesearch-python
+    pip install PySide6 networkx qasync scipy folium aiofiles requests bs4 googlesearch-python geopy
     pip install -U g4f
 fi
 

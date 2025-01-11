@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import Dict, ClassVar, Type
+from typing import Dict, ClassVar, Type, Optional, Tuple
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 from .base import (
     Entity, StringValidator, entity_property
 )
@@ -48,10 +50,62 @@ class Location(Entity):
         return ""
     
     def update_label(self):
-        """Update the label based on address components"""
+        """Update the label based on address components and handle geocoding"""
+        try:
+            geolocator = Nominatim(user_agent="PANO_APP")
+            location = None
+            
+            # Get coordinates either from properties or from forward geocoding
+            lat = self.properties.get("latitude", "")
+            lng = self.properties.get("longitude", "")
+            
+            # If no coordinates, try to get them from address
+            if not (lat and lng):
+                address_parts = []
+                for field in ["address", "city", "state", "country"]:
+                    if self.properties.get(field):
+                        address_parts.append(self.properties[field])
+                
+                if address_parts:
+                    location = geolocator.geocode(", ".join(address_parts), exactly_one=True)
+                    if location:
+                        lat = str(location.latitude)
+                        lng = str(location.longitude)
+            
+            # Now that we have coordinates (either from properties or forward geocoding),
+            # use reverse geocoding to get complete address details
+            if lat and lng:
+                try:
+                    coords = (float(lat), float(lng))
+                    location = geolocator.reverse(coords, exactly_one=True)
+                    if location:
+                        # Update coordinates
+                        self.properties["latitude"] = str(location.latitude)
+                        self.properties["longitude"] = str(location.longitude)
+                        
+                        # Update address components from raw data
+                        address = location.raw.get('address', {})
+                        
+                        # Map OpenStreetMap fields to our properties
+                        if 'road' in address and 'house_number' in address:
+                            self.properties["address"] = f"{address['house_number']} {address['road']}"
+                        elif 'road' in address:
+                            self.properties["address"] = address['road']
+                            
+                        self.properties["city"] = address.get('city', address.get('town', address.get('village', '')))
+                        self.properties["state"] = address.get('state', '')
+                        self.properties["country"] = address.get('country', '')
+                        self.properties["postal_code"] = address.get('postcode', '')
+                except ValueError:
+                    pass
+        
+        except (GeocoderTimedOut, GeocoderUnavailable):
+            pass
+        
+        # Set the label using available properties
         self.label = self.format_label(["address", "city", "country"])
         
-        # Only update image when both coordinates are valid
+        # Update image
         image_url = self.generate_image_url()
         if image_url:
             self.properties["image"] = image_url
