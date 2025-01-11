@@ -68,7 +68,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "6.1.0"
+        self.version = "6.1.1"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -185,12 +185,6 @@ class MainWindow(QMainWindow):
 
         Her şeye rağmen, beni koşulsuz şartsız seven ve destekleyen
         - Annem
-
-        İki arkadaşımdan biri olan
-        - U
-
-        İki arkadaşımdan bir diğeri olan
-        - Rhotav
 
         Kendisinin benden haberi olmasa da, bana şarkıları ile destek olan
         - Sagopa Kajmer
