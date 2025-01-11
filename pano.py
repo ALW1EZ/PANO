@@ -7,9 +7,9 @@ import sys
 from PySide6.QtCore import Qt, QPointF, QMimeData, QSize
 from PySide6.QtGui import QAction, QDrag, QIcon, QColor
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QGraphicsScene, QToolBar,
+    QApplication, QMainWindow, QToolBar,
     QLineEdit, QMessageBox, QFileDialog, QListWidget, QLabel,
-    QSplitter, QListWidgetItem, QDockWidget, QVBoxLayout, QWidget
+    QSplitter, QListWidgetItem, QDockWidget, QVBoxLayout, QWidget, QStatusBar, QPushButton, QDialog
 )
 from qasync import QEventLoop, asyncSlot
 
@@ -40,19 +40,8 @@ class DraggableEntityList(QListWidget):
         for entity_name, entity_class in ENTITY_TYPES.items():
             item = QListWidgetItem(entity_name)
             item.setData(Qt.ItemDataRole.UserRole, entity_name)
-            
-            # # Set icon if available
-            # if hasattr(entity_class, 'icon'):
-            #     icon_path = os.path.join(os.path.dirname(__file__), entity_class.icon)
-            #     if os.path.exists(icon_path):
-            #         item.setIcon(QIcon(icon_path))
-            
-            # Set description as tooltip if available
-            # if hasattr(entity_class, 'description'):
-            #     item.setToolTip(entity_class.description)
-            
-            self.addItem(item)
-            
+            self.addItem(item)            
+
     def startDrag(self, actions):
         item = self.currentItem()
         if item is None:
@@ -77,7 +66,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "5.0.0"
+        self.version = "5.1.0"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -145,7 +134,68 @@ class MainWindow(QMainWindow):
         
         # Create toolbar
         self.setup_toolbar()
+
+        # Create status bar
+        self.setup_status_bar()
+
+    def setup_status_bar(self):
+        """Setup the status bar"""
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
         
+        # Create about label with double click handling
+        about_label = QLabel("About")
+        about_label.setStyleSheet("color: gray; font-weight: bold; padding: 5px;")
+        about_label.mouseDoubleClickEvent = lambda e: self.show_about_dialog()
+        self.status_bar.addPermanentWidget(about_label)
+        
+    def show_about_dialog(self):
+        """Show floating about dialog"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("About")
+        dialog.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+        
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel(f"PANO v{self.version}"))
+        layout.addWidget(QLabel("Platform for Analysis and Network Operations"))
+        layout.addWidget(QLabel(""))
+
+        all_about_text = """
+        Olay zaman analizi ve açık kaynak istihbaratı için yazdığım PANO'yu
+        Yazarken yakınımda olmayan herkese teşekkürler.
+        Onlar her zaman benim yanımda oldular.
+
+        Kendisini her zaman idol gördüğüm, ne zaman çaresiz kalsam
+        O ne yapardı diye düşündüğüm, anılarını dinleyerek büyüdüğüm,
+        "Halk kendinin polisidir." sözüyle beni derinden etkilemiş,
+        Çok özlediğim başkomiser
+        - Babam
+
+        Her şeye rağmen, beni koşulsuz şartsız seven ve destekleyen
+        - Annem
+
+        İki arkadaşımdan biri olan
+        - U
+
+        İki arkadaşımdan bir diğeri olan
+        - Rhotav
+
+        Kendisinin benden haberi olmasa da, bana şarkıları ile destek olan
+        - Sagopa Kajmer
+
+        Ve işimin kolaylaşmasını sağlayan bütün kütüphane yazarlarına teşekkürler.
+
+                                                                        - ALW1EZ
+        """
+        layout.addWidget(QLabel(all_about_text))
+
+        # add a close button
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(dialog.close)
+        layout.addWidget(close_button)
+        
+        dialog.show()
+
     def setup_left_dock(self):
         """Setup the left dock with entities and transforms"""
         left_dock = QDockWidget("Tools", self)
@@ -201,22 +251,31 @@ class MainWindow(QMainWindow):
         self.load_action.setShortcut("Ctrl+O")
         self.load_action.setStatusTip("Load investigation")
         self.load_action.triggered.connect(self.load_investigation)
+
+        self.view_timeline_action = QAction("Timeline", self)
+        self.view_timeline_action.setShortcut("Ctrl+T")
+        self.view_timeline_action.setStatusTip("Show/Hide timeline")
+        self.view_timeline_action.triggered.connect(self.view_timeline)
     
     def setup_toolbar(self):
         """Setup the toolbar with search and basic actions"""
         self.toolbar = QToolBar()
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbar)
         
+        # Add basic actions
+        self.toolbar.addAction(self.new_action)
+        self.toolbar.addAction(self.save_action)
+        self.toolbar.addAction(self.load_action)
+        self.toolbar.addAction(self.view_timeline_action)
+
+        # Add separator
+        self.toolbar.addSeparator()
+
         # Add search bar
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Start smart search")
         self.search_bar.setMinimumWidth(200)
         self.toolbar.addWidget(self.search_bar)
-        
-        # Add basic actions
-        self.toolbar.addAction(self.new_action)
-        self.toolbar.addAction(self.save_action)
-        self.toolbar.addAction(self.load_action)
         
         # Add separator
         self.toolbar.addSeparator()
@@ -231,11 +290,6 @@ class MainWindow(QMainWindow):
         self.hierarchical_layout_action.setStatusTip("Arrange nodes in a hierarchical tree")
         self.hierarchical_layout_action.triggered.connect(self.apply_hierarchical_layout)
         self.toolbar.addAction(self.hierarchical_layout_action)
-        
-        self.grid_layout_action = QAction("Grid", self)
-        self.grid_layout_action.setStatusTip("Arrange nodes in a grid")
-        self.grid_layout_action.triggered.connect(self.apply_grid_layout)
-        self.toolbar.addAction(self.grid_layout_action)
         
         self.radial_layout_action = QAction("Radial", self)
         self.radial_layout_action.setStatusTip("Arrange nodes in a radial tree layout")
@@ -319,6 +373,13 @@ class MainWindow(QMainWindow):
             }
             QPushButton:hover {
                 background-color: #4d4d4d;
+            }
+            QStatusBar {
+                background-color: #2d2d2d;
+                color: #ffffff;
+            }
+            QStatusBar QLabel {
+                color: #ffffff;
             }
         """
     
@@ -466,6 +527,12 @@ class MainWindow(QMainWindow):
             logger.error(f"Failed to load investigation: {str(e)}", exc_info=True)
             QMessageBox.critical(self, "Load Error", f"Failed to load investigation: {str(e)}")
     
+    def view_timeline(self):
+        """View the timeline"""
+        # Show/Hide the timeline dock
+        self.timeline_manager.timeline_dock.setVisible(not self.timeline_manager.timeline_dock.isVisible())
+        self.timeline_manager.timeline_dock.raise_()
+
     def new_investigation(self):
         """Create a new investigation"""
         if QMessageBox.question(self, "Clear Investigation", "Are you sure you want to clear the current investigation?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:

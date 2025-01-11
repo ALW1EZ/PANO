@@ -111,7 +111,7 @@ class AIDock(QWidget):
                 color: white;
                 border: none;
                 border-radius: 5px;
-                margin-top: 5px;
+                margin-top: 10px;
             }
         """)
 
@@ -197,7 +197,7 @@ class AIDock(QWidget):
             # Use last event time if available, otherwise use current time
             reference_time = self.last_event_time or current_time
 
-            system_prompt = f"""You are an advanced AI investigator that helps analyze and map complex scenarios in a graph database.
+            system_prompt = f"""You are PANAI,an advanced AI investigator that helps analyze and map complex scenarios in a graph database.
 Your task is to understand relationships, events, and entities, creating a coherent graph representation.
 
 Available entity types and their properties:

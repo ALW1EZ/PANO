@@ -97,11 +97,19 @@ class UsernameToWebsite(Transform):
                 "link": url,
                 "source": f"UsernameToWebsite transform ({result['source']})"
             })
-        elif domain in ["x.com", "twitter.com"]:
+        elif domain == "twitter.com" and "/status/" not in url:
             username = url.split("/")[3].split("?")[0]
             return Username(properties={
                 "username": username,
                 "platform": "twitter", 
+                "link": url,
+                "source": f"UsernameToWebsite transform ({result['source']})"
+            })
+        elif domain == "x.com":
+            username = url.split("/")[3].split("?")[0]
+            return Username(properties={
+                "username": username,
+                "platform": "x", 
                 "link": url,
                 "source": f"UsernameToWebsite transform ({result['source']})"
             })

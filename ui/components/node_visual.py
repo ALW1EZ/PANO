@@ -638,11 +638,13 @@ class NodeVisual(QGraphicsObject):
         
         # If no nodes are selected, delete just this node
         if not selected_nodes:
-            self._delete_node()
+            if QMessageBox.question(None, "Delete Node", "Are you sure you want to delete this node?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+                self._delete_node()
             return
             
         view = self.scene().views()[0]
         if hasattr(view, 'graph_manager'):
             # Delete all selected nodes
-            for node in selected_nodes:
-                view.graph_manager.remove_node(node.node.id) 
+            if QMessageBox.question(None, "Delete Nodes", "Are you sure you want to delete these nodes?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+                for node in selected_nodes:
+                    view.graph_manager.remove_node(node.node.id) 
