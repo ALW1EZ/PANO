@@ -17,6 +17,7 @@ import asyncio
 import math
 import os
 from qasync import asyncSlot
+from PySide6.QtCore import Signal
 
 import requests
 from bs4 import BeautifulSoup
@@ -63,6 +64,9 @@ class NodeDimensions:
         self._height = max(value, self.min_height)
 
 class NodeVisual(QGraphicsObject):
+    """Visual representation of a node in the graph"""
+    node_updated = Signal()  # Signal emitted when node is updated
+    
     def __init__(self, node: Entity, style: NodeStyle = NodeStyle(), parent=None):
         super().__init__(parent)
         self.node = node
@@ -386,6 +390,9 @@ class NodeVisual(QGraphicsObject):
         
         if hasattr(self, 'image_item') and self.image_item.pixmap():
             self._update_image_scale()
+            
+        # Emit update signal
+        self.node_updated.emit()
 
     def _edit_properties(self):
         """Open property editor dialog"""
@@ -419,6 +426,9 @@ class NodeVisual(QGraphicsObject):
         
         # Update layout after image is loaded
         self._update_layout()
+        
+        # Emit update signal
+        self.node_updated.emit()
 
     def _delete_node(self):
         """Delete this node"""

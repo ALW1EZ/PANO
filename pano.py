@@ -23,6 +23,7 @@ from ui.managers.timeline_manager import TimelineManager
 from ui.managers.status_manager import StatusManager
 from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
 from ui.components.ai_dock import AIDock
+from ui.components.node_list import NodeList
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -67,7 +68,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "5.3.1"
+        self.version = "6.0.0"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -99,18 +100,22 @@ class MainWindow(QMainWindow):
         # Create vertical splitter
         self.vertical_splitter = QSplitter(Qt.Orientation.Vertical)
         
-        # Create map widget first
-        self.map_widget = MapVisual()
+        # Create node list first
+        self.node_list = NodeList(None)  # We'll set the graph manager later
         
-        # Create the graph view after map widget
+        # Create the graph view after node list
         self.graph_view = GraphView()
         
+        # Create map widget last
+        self.map_widget = MapVisual()
+        
         # Add widgets to splitter in order
+        self.vertical_splitter.addWidget(self.node_list)
         self.vertical_splitter.addWidget(self.graph_view)
         self.vertical_splitter.addWidget(self.map_widget)
         
-        # Set initial sizes (100% graph, 0% map at start)
-        self.vertical_splitter.setSizes([1000, 0])
+        # Set initial sizes (0% node list, 1000% graph, 0% map at start)
+        self.vertical_splitter.setSizes([0, 1000, 0])
         
         central_layout.addWidget(self.vertical_splitter)
         self.setCentralWidget(central_widget)
@@ -125,6 +130,12 @@ class MainWindow(QMainWindow):
         # Connect map manager to graph manager
         self.graph_view.graph_manager.set_map_manager(self.map_manager)
         
+        # Set graph manager for node list
+        self.node_list.graph_manager = self.graph_view.graph_manager
+        
+        # Connect graph manager signals to node list
+        self.graph_view.graph_manager.nodes_changed.connect(self.node_list.refresh_nodes)
+
     def _setup_ui(self):
         """Setup the complete UI with managers"""
         # Set application style

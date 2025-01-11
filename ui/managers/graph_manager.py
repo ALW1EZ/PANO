@@ -1,7 +1,7 @@
 from typing import Dict, Any
 import asyncio
 import logging
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, Qt, QObject, Signal, QTimer
 from PySide6.QtGui import QColor
 
 from entities import Entity
@@ -11,11 +11,16 @@ from ..components.node_visual import NodeVisual
 from ..components.edge_visual import EdgeVisual
 from ..dialogs.timeline_editor import TimelineEvent
 from .map_manager import MapManager
+from ..components.node_visual import NodeVisualState
 
 logger = logging.getLogger(__name__)
 
-class GraphManager:
+class GraphManager(QObject):
+    """Manages the graph's nodes and edges"""
+    nodes_changed = Signal()  # Signal emitted when nodes are added, removed, or cleared
+    
     def __init__(self, view):
+        super().__init__()
         self.view = view
         self.nodes: Dict[str, NodeVisual] = {}
         self.edges: Dict[str, EdgeVisual] = {}
@@ -55,6 +60,7 @@ class GraphManager:
                     timeline_event.source_entity_id = entity.id
                     window.timeline_manager.add_event(timeline_event)
         
+        self.nodes_changed.emit()
         return node
         
     def add_edge(self, source_id: str, target_id: str, relationship: str = "") -> EdgeVisual | None:
@@ -150,6 +156,7 @@ class GraphManager:
                     timeline_manager.timeline_widget.delete_event(event)
         
         self.view.scene.removeItem(node)
+        self.nodes_changed.emit()
         
     def clear(self) -> None:
         """Clear all nodes and edges from the graph"""
@@ -162,6 +169,7 @@ class GraphManager:
         for node in self.nodes.values():
             self.view.scene.removeItem(node)
         self.nodes.clear()
+        self.nodes_changed.emit()
         
     def to_dict(self) -> Dict[str, Any]:
         """Serialize the graph state to a dictionary"""
@@ -215,3 +223,20 @@ class GraphManager:
             
         # Allow UI to update
         await asyncio.sleep(0) 
+        
+    def center_on_node(self, node: NodeVisual) -> None:
+        """Center the view on a specific node"""
+        if not node:
+            return
+            
+        # Get the node's scene position
+        node_pos = node.scenePos()
+        
+        # Center the view on the node
+        self.view.centerOn(node_pos)
+        
+        # Set zoom level to 2x
+        current_transform = self.view.transform()
+        current_scale = current_transform.m11() # Get current horizontal scale
+        scale_factor = 2.0 / current_scale # Calculate factor needed to reach 2x
+        self.view.scale(scale_factor, scale_factor)
