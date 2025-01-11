@@ -21,6 +21,7 @@ from qasync import asyncSlot
 import requests
 from bs4 import BeautifulSoup
 import random
+import aiohttp
 
 from entities import Entity
 from entities.event import Event
@@ -114,7 +115,8 @@ class NodeVisual(QGraphicsObject):
         
         # Load image if available
         image_path = self.node.properties.get("image")
-        self._load_image(image_path)
+        if image_path:
+            asyncio.create_task(self._load_image(image_path))
 
     def _update_layout(self):
         """Update all text and layout"""
@@ -372,6 +374,17 @@ class NodeVisual(QGraphicsObject):
             QMessageBox.critical(None, "Transform Error", str(e))
             raise
 
+    @asyncSlot()
+    async def update_label(self):
+        """Update the node's visual appearance"""
+        image_path = self.node.properties.get("image")
+        if image_path:
+            await self._load_image(image_path)
+        self._update_layout()
+        
+        if hasattr(self, 'image_item') and self.image_item.pixmap():
+            self._update_image_scale()
+
     def _edit_properties(self):
         """Open property editor dialog"""
         dialog = PropertyEditor(self.node)
@@ -382,9 +395,6 @@ class NodeVisual(QGraphicsObject):
             # Update the node's properties
             for key, value in updated_properties.items():
                 self.node.properties[key] = value
-            
-            # Update the node's label
-            self.node.update_label()
             
             # Update visual representation
             self._update_layout()
@@ -397,7 +407,8 @@ class NodeVisual(QGraphicsObject):
                 
             # Load image if available
             image_path = self.node.properties.get("image")
-            self._load_image(image_path)
+            if image_path:
+                self.update_label()  # This is already an asyncSlot, no need to create_task
 
     def _delete_node(self):
         """Delete this node"""
@@ -511,8 +522,9 @@ class NodeVisual(QGraphicsObject):
                         view, "Error Creating Relationship", str(e)
                     )
 
-    def _load_remote_image(self, url: str):
-        """Load image from URL"""
+    @asyncSlot()
+    async def _load_remote_image(self, url: str):
+        """Load image from URL asynchronously"""
         try:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -520,27 +532,33 @@ class NodeVisual(QGraphicsObject):
                 "Accept-Language": "en-US,en;q=0.5"
             }
             with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-                response = requests.get(url, headers=headers, stream=True)
-                response.raise_for_status()
-                with open(tmp_file.name, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, headers=headers) as response:
+                        response.raise_for_status()
+                        with open(tmp_file.name, 'wb') as f:
+                            while True:
+                                chunk = await response.content.read(8192)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
                 self._load_local_image(tmp_file.name)
                 os.unlink(tmp_file.name)
         except Exception as e:
             logger.error(f"Failed to load remote image: {e}")
     
-    def _search_image(self, path: str):
+    async def _search_image(self, path: str):
         url = f"https://www.bing.com/images/search?q={path}"
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        images = soup.find_all('img')
-        image_urls = [img['src'] for img in images if 'src' in img.attrs]
-        image_urls = [url for url in image_urls if url.startswith("http")]
-        if image_urls:
-            return random.choice(image_urls)
-        else:
-            return None
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                text = await response.text()
+                soup = BeautifulSoup(text, 'html.parser')
+                images = soup.find_all('img')
+                image_urls = [img['src'] for img in images if 'src' in img.attrs]
+                image_urls = [url for url in image_urls if url.startswith("http")]
+                if image_urls:
+                    return random.choice(image_urls)
+                else:
+                    return None
         
     def _load_local_image(self, path: str):
         """Load image from local file"""
@@ -552,14 +570,14 @@ class NodeVisual(QGraphicsObject):
                 self.original_pixmap = pixmap
                 self._update_layout()
     
-    def _load_image(self, image_path: str):
+    async def _load_image(self, image_path: str):
         if image_path:
             if image_path.startswith(("http://", "https://")):
-                self._load_remote_image(image_path)
+                await self._load_remote_image(image_path)
             elif "/" not in image_path:
-                image_url = self._search_image(image_path)
+                image_url = await self._search_image(image_path)
                 if image_url:
-                    self._load_remote_image(image_url)
+                    await self._load_remote_image(image_url)
                     self.node.properties["image"] = image_url
             else:
                 self._load_local_image(image_path)
@@ -617,15 +635,6 @@ class NodeVisual(QGraphicsObject):
 
         self.image_item.setPixmap(rounded_pixmap)
         self.image_item.setScale(1.0 / scale_factor)
-
-    def update_label(self):
-        """Update the node's visual appearance"""
-        image_path = self.node.properties.get("image")
-        self._load_image(image_path)
-        self._update_layout()
-        
-        if hasattr(self, 'image_item') and self.image_item.pixmap():
-            self._update_image_scale() 
 
     def _delete_selected_nodes(self):
         """Delete all selected nodes"""
