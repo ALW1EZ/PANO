@@ -13,11 +13,6 @@ class TimelineVisual(QWidget):
         self.offset_y = 0
         self.setMinimumWidth(TimelineStyle.PREFERRED_DOCK_WIDTH)
         
-        # Mouse tracking for panning
-        self.is_panning = False
-        self.last_mouse_pos = None
-        self.setMouseTracking(True)
-        
         # Increase box height for better text wrapping
         TimelineStyle.BOX_HEIGHT = 180  # Increased from default
 
@@ -31,9 +26,6 @@ class TimelineVisual(QWidget):
         """Delete an event from the timeline"""
         if event in self.events:
             self.events.remove(event)
-            self.is_panning = False
-            self.last_mouse_pos = None
-            self.setCursor(Qt.CursorShape.ArrowCursor)
             self.update()
 
     def _format_relative_time(self, time_delta):
@@ -322,7 +314,7 @@ class TimelineVisual(QWidget):
             if not self.events:
                 return
 
-            y_offset = TimelineStyle.TOP_MARGIN - self.offset_y
+            y_offset = TimelineStyle.TOP_MARGIN
             last_event = None
             
             for current_event in self.events:
@@ -339,44 +331,13 @@ class TimelineVisual(QWidget):
         finally:
             painter.end()
 
-    def wheelEvent(self, event):
-        scroll_amount = event.angleDelta().y() / 120 * 30  # Normalize scroll amount
-        new_offset = self.offset_y - scroll_amount
-        max_offset = max(0, self.minimumHeight() - self.height())
-        self.offset_y = max(0, min(max_offset, new_offset))
-        self.update()
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.is_panning = True
-            self.last_mouse_pos = event.pos()
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
-        super().mousePressEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.is_panning = False
-            self.last_mouse_pos = None
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-        super().mouseReleaseEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if self.is_panning and self.last_mouse_pos is not None:
-            delta = event.pos().y() - self.last_mouse_pos.y()
-            new_offset = self.offset_y - delta
-            max_offset = max(0, self.minimumHeight() - self.height())
-            self.offset_y = max(0, min(max_offset, new_offset))
-            self.last_mouse_pos = event.pos()
-            self.update()
-        super().mouseMoveEvent(event)
-
     def _find_event_at_position(self, pos):
         """Find the event at the given position"""
         if not self.events:
             return None
 
-        # Calculate y position relative to scroll offset
-        adjusted_y = pos.y() + self.offset_y
+        # Calculate y position
+        adjusted_y = pos.y()
         
         # Check if click is within the box horizontally
         box_x = TimelineStyle.LEFT_MARGIN

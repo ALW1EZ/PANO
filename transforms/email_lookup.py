@@ -57,8 +57,9 @@ class EmailToEntities(Transform):
                 status.set_text(f"Email lookup complete - found {len(entities)} entities")
                 return entities
 
-        except Exception:
-            status.set_text("Error during email lookup")
+        except Exception as e:
+            status.set_text(f"Error during email lookup: {e}")
+            print(f"Error during email lookup: {e}")
             return []
         finally:
             status.stop_loading(operation_id)
@@ -158,28 +159,44 @@ class EmailToEntities(Transform):
         # Process Calendar events
         if hasattr(target, 'calendar_events') and target.calendar_events:
             for event in target.calendar_events.items:
-                start_date = end_date = ""
-                if hasattr(event, 'start') and event.start and hasattr(event.start, 'date_time'):
-                    start_date = event.start.date_time.strftime("%Y-%m-%d %H:%M")
-                if hasattr(event, 'end') and event.end and hasattr(event.end, 'date_time'):
-                    end_date = event.end.date_time.strftime("%Y-%m-%d %H:%M")
-                
-                description = getattr(event, 'description', "")
-                if start_date and end_date:
-                    duration = relativedelta(event.end.date_time, event.start.date_time)
-                    if any([duration.days, duration.hours, duration.minutes]):
-                        duration_str = " ".join(filter(None, [
-                            f"{duration.days} day{'s' if duration.days > 1 else ''}" if duration.days else "",
-                            f"{duration.hours} hour{'s' if duration.hours > 1 else ''}" if duration.hours else "",
-                            f"{duration.minutes} minute{'s' if duration.minutes > 1 else ''}" if duration.minutes else ""
-                        ]))
-
-                entities.append(self._create_entities("event",
-                    name=getattr(event, 'summary', "Untitled Event"),
-                    description=description,
-                    start_date=start_date,
-                    end_date=end_date,
-                    add_to_timeline=True
-                ))
+                try:
+                    start_date = end_date = ""
+                    
+                    # Handle start date
+                    if hasattr(event, 'start'):
+                        if hasattr(event.start, 'date_time') and event.start.date_time:
+                            start_date = event.start.date_time.strftime("%Y-%m-%d %H:%M")
+                        elif hasattr(event.start, 'date') and event.start.date:
+                            start_date = f"{event.start.date} 00:00"
+                    
+                    # Handle end date
+                    if hasattr(event, 'end'):
+                        if hasattr(event.end, 'date_time') and event.end.date_time:
+                            end_date = event.end.date_time.strftime("%Y-%m-%d %H:%M")
+                        elif hasattr(event.end, 'date') and event.end.date:
+                            end_date = f"{event.end.date} 23:59"
+                    
+                    description = getattr(event, 'description', "")
+                    if description is None:
+                        description = ""
+                    
+                    # Calculate duration only if we have both dates
+                    if start_date and end_date:
+                        try:
+                            start_dt = datetime.strptime(start_date, "%Y-%m-%d %H:%M")
+                            end_dt = datetime.strptime(end_date, "%Y-%m-%d %H:%M")
+                        except ValueError:
+                            pass  # Skip duration calculation if date parsing fails
+                    
+                    entities.append(self._create_entities("event",
+                        name=getattr(event, 'summary', "Untitled Event"),
+                        description=description,
+                        start_date=start_dt,
+                        end_date=end_dt,
+                        add_to_timeline=True
+                    ))
+                except Exception as e:
+                    print(f"Failed to process calendar event: {e}")
+                    continue
 
         return entities 

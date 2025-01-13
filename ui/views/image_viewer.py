@@ -38,7 +38,11 @@ class DrawingScene(QGraphicsScene):
             items = [item for item in self.items() if item != self.background_item]
         self.undo_stack.append(items)
         self.redo_stack.clear()
-        
+        # Update undo/redo actions
+        if hasattr(self.parent(), 'undo_action'):
+            self.parent().undo_action.setEnabled(True)
+            self.parent().redo_action.setEnabled(False)
+            
     def undo(self):
         if not self.undo_stack:
             return
@@ -55,6 +59,11 @@ class DrawingScene(QGraphicsScene):
         for item in previous_state:
             self.addItem(item)
             
+        # Update undo/redo actions
+        if hasattr(self.parent(), 'undo_action'):
+            self.parent().undo_action.setEnabled(bool(self.undo_stack))
+            self.parent().redo_action.setEnabled(True)
+            
     def redo(self):
         if not self.redo_stack:
             return
@@ -70,6 +79,11 @@ class DrawingScene(QGraphicsScene):
         # Add back next state
         for item in next_state:
             self.addItem(item)
+            
+        # Update undo/redo actions
+        if hasattr(self.parent(), 'undo_action'):
+            self.parent().undo_action.setEnabled(True)
+            self.parent().redo_action.setEnabled(bool(self.redo_stack))
             
     def create_arrow(self, start, end):
         """Create an arrow polygon"""
@@ -104,7 +118,7 @@ class DrawingScene(QGraphicsScene):
             if self.tool == "pen":
                 self.current_path = QPainterPath()
                 self.current_path.moveTo(self.last_point)
-            super().mousePressEvent(event)
+        super().mousePressEvent(event)
             
     def mouseMoveEvent(self, event):
         if self.drawing and self.parent().drawing_enabled:
@@ -243,6 +257,10 @@ class ImageViewer(QMainWindow):
             QToolBar QToolButton:hover {
                 background-color: #4d4d4d;
             }
+            QToolBar QToolButton:checked {
+                background-color: #505050;
+                border: 1px solid #666666;
+            }
             QComboBox {
                 background-color: #3d3d3d;
                 border: 1px solid #555555;
@@ -306,16 +324,20 @@ class ImageViewer(QMainWindow):
         self.toolbar = QToolBar()
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbar)
         
-        # Add undo/redo actions
+        # Add undo/redo actions with icons
         undo_action = QAction("Undo", self)
         undo_action.setShortcut("Ctrl+Z")
         undo_action.triggered.connect(self.undo)
+        undo_action.setEnabled(False)  # Initially disabled
         self.toolbar.addAction(undo_action)
+        self.undo_action = undo_action
         
         redo_action = QAction("Redo", self)
         redo_action.setShortcut("Ctrl+Shift+Z")
         redo_action.triggered.connect(self.redo)
+        redo_action.setEnabled(False)  # Initially disabled
         self.toolbar.addAction(redo_action)
+        self.redo_action = redo_action
         
         self.toolbar.addSeparator()
         
@@ -338,10 +360,10 @@ class ImageViewer(QMainWindow):
         self.toolbar.addSeparator()
         
         # Add drawing tools
-        draw_action = QAction("Toggle Drawing", self)
-        draw_action.setCheckable(True)
-        draw_action.triggered.connect(self.toggle_drawing)
-        self.toolbar.addAction(draw_action)
+        self.draw_action = QAction("Toggle Drawing", self)
+        self.draw_action.setCheckable(True)
+        self.draw_action.triggered.connect(self.toggle_drawing)
+        self.toolbar.addAction(self.draw_action)
         
         # Add tool selector
         self.tool_selector = QComboBox()
@@ -385,13 +407,8 @@ class ImageViewer(QMainWindow):
         self.toolbar.addSeparator()
         
         # Add save actions
-        save_action = QAction("Save", self)
-        save_action.setShortcut("Ctrl+S")
-        save_action.triggered.connect(self.save_image)
-        self.toolbar.addAction(save_action)
-        
         save_as_action = QAction("Save As...", self)
-        save_as_action.setShortcut("Ctrl+Shift+S")
+        save_as_action.setShortcut("Ctrl+S")  # Change shortcut to Ctrl+S since it's the only save action
         save_as_action.triggered.connect(self.save_image_as)
         self.toolbar.addAction(save_as_action)
         
@@ -405,6 +422,8 @@ class ImageViewer(QMainWindow):
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.view.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        # Set initial drag mode to ScrollHandDrag since drawing is disabled by default
+        self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.view.setStyleSheet("""
             QGraphicsView {
                 border: none;
@@ -445,12 +464,12 @@ class ImageViewer(QMainWindow):
     def wheelEvent(self, event):
         """Handle mouse wheel for zooming"""
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
-            if event.angleDelta().y() > 0:
-                self.zoom_in()
-            else:
-                self.zoom_out()
+            # Zoom with finer control
+            factor = 1.15 if event.angleDelta().y() > 0 else 1/1.15
+            self.view.scale(factor, factor)
         else:
-            super().wheelEvent(event)
+            # Pass the event to the view for scrolling
+            self.view.wheelEvent(event)
         
     async def load_image(self, image_path):
         """Load image from local path or URL"""
@@ -515,6 +534,8 @@ class ImageViewer(QMainWindow):
             QGraphicsView.DragMode.NoDrag if enabled 
             else QGraphicsView.DragMode.ScrollHandDrag
         )
+        # Update the draw action appearance
+        self.draw_action.setChecked(enabled)
         
     def choose_color(self):
         color = QColorDialog.getColor(self.scene.pen.color(), self)
@@ -523,13 +544,6 @@ class ImageViewer(QMainWindow):
             
     def change_pen_width(self, width):
         self.scene.pen.setWidth(width)
-        
-    def save_image(self):
-        if not self.image_path:
-            self.save_image_as()
-            return
-            
-        self.save_to_file(self.image_path)
         
     def save_image_as(self):
         file_path, _ = QFileDialog.getSaveFileName(
@@ -581,3 +595,21 @@ class ImageViewer(QMainWindow):
         
     def redo(self):
         self.scene.redo() 
+        
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+            # Create a fake left button press event to enable dragging
+            fake_event = event
+            fake_event.setButton(Qt.MouseButton.LeftButton)
+            self.view.mousePressEvent(fake_event)
+        else:
+            super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self.view.setDragMode(
+                QGraphicsView.DragMode.NoDrag if self.drawing_enabled 
+                else QGraphicsView.DragMode.ScrollHandDrag
+            )
+        super().mouseReleaseEvent(event) 
