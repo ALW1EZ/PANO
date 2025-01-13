@@ -659,6 +659,31 @@ class NodeVisual(QGraphicsObject):
 
         self.image_item.setPixmap(rounded_pixmap)
         self.image_item.setScale(1.0 / scale_factor)
+    
+    def _show_delete_confirmation(self, title: str, message: str) -> bool:
+        """Show a delete confirmation dialog"""
+        msg_box = QMessageBox()
+        msg_box.setStyleSheet("""
+            QMessageBox {
+                background-color: #2D2D30;
+                color: #ffffff;
+            }
+            QMessageBox QLabel {
+                color: #ffffff;
+            }
+            QPushButton {
+                background-color: #3d3d3d;
+                border: none;
+                border-radius: 4px;
+                padding: 5px 10px;
+                color: #ffffff;
+            }
+        """)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+        return msg_box.exec() == QMessageBox.StandardButton.Yes
 
     def _delete_selected_nodes(self):
         """Delete all selected nodes"""
@@ -671,13 +696,13 @@ class NodeVisual(QGraphicsObject):
         
         # If no nodes are selected, delete just this node
         if not selected_nodes:
-            if QMessageBox.question(None, "Delete Node", "Are you sure you want to delete this node?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            if self._show_delete_confirmation("Delete Node", "Are you sure you want to delete this node?"):
                 self._delete_node()
             return
             
         view = self.scene().views()[0]
         if hasattr(view, 'graph_manager'):
             # Delete all selected nodes
-            if QMessageBox.question(None, "Delete Nodes", "Are you sure you want to delete these nodes?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            if self._show_delete_confirmation("Delete Nodes", "Are you sure you want to delete these nodes?"):
                 for node in selected_nodes:
-                    view.graph_manager.remove_node(node.node.id) 
+                    view.graph_manager.remove_node(node.node.id)
