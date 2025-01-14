@@ -68,7 +68,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "6.4.1"
+        self.version = "6.5.2"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -170,7 +170,6 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel(f"PANO v{self.version}"))
         layout.addWidget(QLabel("Platform for Analysis and Network Operations"))
-        layout.addWidget(QLabel(""))
 
         all_about_text = """
         Olay zaman analizi ve açık kaynak istihbaratı için yazdığım PANO'yu

@@ -8,8 +8,17 @@ import tempfile
 import os
 import logging
 import json
+from folium.features import DivIcon
+from math import pi, cos
 
 class MapVisual(QWidget):
+    # Average speeds in meters per second
+    TRANSPORT_SPEEDS = {
+        'walking': 1.4,  # 5 km/h
+        'car': 13.9,     # 50 km/h
+        'bus': 8.3       # 30 km/h
+    }
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QVBoxLayout(self)
@@ -17,50 +26,117 @@ class MapVisual(QWidget):
         
         # Create web view for the map
         self.web_view = QWebEngineView()
-        # Enable JavaScript
         self.web_view.settings().setAttribute(
             self.web_view.settings().WebAttribute.JavascriptEnabled, True
         )
-        # Allow access to remote resources
         self.web_view.settings().setAttribute(
             self.web_view.settings().WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
         self.layout.addWidget(self.web_view)
         
-        # Keep track of temporary file
         self._temp_file = None
-        
-        # Store markers for management
         self.markers = {}
         self.marker_count = 0
         
-        # Setup context menu
         self.web_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.web_view.customContextMenuRequested.connect(self.show_context_menu)
         
-        # Initialize map
         self.init_map()
-        
+
+    def calculate_travel_times(self, distance):
+        """Calculate travel times for different modes of transport"""
+        return {mode: distance / speed for mode, speed in self.TRANSPORT_SPEEDS.items()}
+
+    def format_time(self, seconds):
+        """Format seconds into a human-readable time string"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        return f"{minutes}m"
+
     def init_map(self):
         # Create a folium map centered at (0, 0) with CartoDB dark matter tiles
         self.folium_map = folium.Map(
             location=[0, 0],
             zoom_start=2,
-            tiles='CartoDB dark_matter',
+            tiles=None,  # Start with no base layer
             control_scale=True,
             prefer_canvas=True
         )
         
-        # Add drawing and measurement controls
+        # Add base layers with radio buttons
+        folium.TileLayer(
+            tiles='http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            attr='© OpenStreetMap contributors',
+            name='OpenStreetMap',
+            control=True,
+            overlay=False
+        ).add_to(self.folium_map)
+
+        folium.TileLayer(
+            tiles='http://tile.memomaps.de/tilegen/{z}/{x}/{y}.png',
+            attr='© MeMoMaps contributors',
+            name='Transport Map',
+            control=True,
+            overlay=False
+        ).add_to(self.folium_map)
+
+        folium.TileLayer(
+            tiles='CartoDB dark_matter',
+            name='Dark Mode',
+            control=True,
+            overlay=False
+        ).add_to(self.folium_map)
+
+        # Add layer control with exclusive layers (radio buttons)
+        folium.LayerControl(position='topright', collapsed=True).add_to(self.folium_map)
+        
+        # Add custom draw with travel time calculations
         draw = Draw(
             position='topleft',
             draw_options={
-                'polyline': True,
-                'rectangle': True,
-                'polygon': True,
-                'circle': True,
+                'polyline': {
+                    'metric': True,
+                    'showLength': True,
+                    'shapeOptions': {
+                        'color': '#1288e8'
+                    }
+                },
+                'rectangle': True,  # Re-enable rectangle
+                'polygon': True,    # Re-enable polygon
+                'circle': {
+                    'metric': True,
+                    'showRadius': True,
+                    'shapeOptions': {
+                        'color': '#1288e8'
+                    }
+                },
                 'marker': True,
-                'circlemarker': False
+                'circlemarker': False,
+                'polygon': {
+                    'metric': True,
+                    'showArea': True,
+                    'shapeOptions': {
+                        'color': '#1288e8',
+                        'fillColor': '#1288e8',
+                        'fillOpacity': 0.2
+                    }
+                },
+                'rectangle': {
+                    'metric': True,
+                    'showArea': True,
+                    'shapeOptions': {
+                        'color': '#1288e8',
+                        'fillColor': '#1288e8',
+                        'fillOpacity': 0.2
+                    }
+                }
+            },
+            edit_options={
+                'featureGroup': None,  # Required for edit to work
+                'edit': True,
+                'remove': True
             }
         )
         draw.add_to(self.folium_map)
@@ -77,6 +153,159 @@ class MapVisual(QWidget):
         
         # Add mouse position display
         MousePosition().add_to(self.folium_map)
+        
+        # Add JavaScript for travel time calculations
+        self.folium_map.get_root().script.add_child(folium.Element("""
+            // Wait for the map to be ready
+            document.addEventListener('DOMContentLoaded', function() {
+                // Get the map container
+                var mapContainer = document.querySelector('#map');
+                if (!mapContainer) return;
+                
+                // Wait for Leaflet to be initialized
+                var waitForMap = setInterval(function() {
+                    // Find the Leaflet map instance
+                    var maps = Object.values(window).filter(function(value) {
+                        return value && value._leaflet_id && value instanceof L.Map;
+                    });
+                    
+                    if (maps.length > 0) {
+                        clearInterval(waitForMap);
+                        var map = maps[0];
+                        
+                        // Initialize FeatureGroup for drawn items
+                        var drawnItems = new L.FeatureGroup();
+                        map.addLayer(drawnItems);
+                        
+                        // Configure draw control
+                        var drawControl = document.querySelector('.leaflet-draw');
+                        if (drawControl) {
+                            drawControl.style.display = 'block';
+                        }
+                        
+                        // Handle right-click events
+                        map.on('contextmenu', function(e) {
+                            window.lastRightClick = {
+                                lat: e.latlng.lat,
+                                lng: e.latlng.lng
+                            };
+                            // Prevent default context menu
+                            e.originalEvent.preventDefault();
+                        });
+                        
+                        // Format time helper function
+                        function formatTime(seconds) {
+                            var hours = Math.floor(seconds / 3600);
+                            var minutes = Math.floor((seconds % 3600) / 60);
+                            return hours > 0 ? hours + 'h ' + minutes + 'm' : minutes + 'm';
+                        }
+                        
+                        // Handle draw events
+                        map.on('draw:created', function(e) {
+                            var layer = e.layer;
+                            drawnItems.addLayer(layer);
+                            
+                            if (e.layerType === 'circle') {
+                                var radius = layer.getRadius();
+                                
+                                // Calculate travel times
+                                var walkTime = radius / 1.4;
+                                var carTime = radius / 13.9;
+                                var busTime = radius / 8.3;
+                                
+                                var popupContent = 
+                                    '<div class="travel-times">' +
+                                    '<strong>Radius:</strong> ' + (radius/1000).toFixed(2) + ' km<br>' +
+                                    '<strong>Travel times:</strong><br>' +
+                                    '🚶 Walking: ' + formatTime(walkTime) + '<br>' +
+                                    '🚗 Car: ' + formatTime(carTime) + '<br>' +
+                                    '🚌 Bus: ' + formatTime(busTime) +
+                                    '</div>';
+                                
+                                layer.bindPopup(popupContent).openPopup();
+                            }
+                            else if (e.layerType === 'polyline') {
+                                var distance = 0;
+                                var latlngs = layer.getLatLngs();
+                                
+                                for (var i = 0; i < latlngs.length - 1; i++) {
+                                    distance += latlngs[i].distanceTo(latlngs[i + 1]);
+                                }
+                                
+                                // Calculate travel times
+                                var walkTime = distance / 1.4;
+                                var carTime = distance / 13.9;
+                                var busTime = distance / 8.3;
+                                
+                                var popupContent = 
+                                    '<div class="travel-times">' +
+                                    '<strong>Distance:</strong> ' + (distance/1000).toFixed(2) + ' km<br>' +
+                                    '<strong>Travel times:</strong><br>' +
+                                    '🚶 Walking: ' + formatTime(walkTime) + '<br>' +
+                                    '🚗 Car: ' + formatTime(carTime) + '<br>' +
+                                    '🚌 Bus: ' + formatTime(busTime) +
+                                    '</div>';
+                                
+                                layer.bindPopup(popupContent).openPopup();
+                            }
+                            else if (e.layerType === 'marker') {
+                                var latlng = layer.getLatLng();
+                                layer.bindPopup('Marker at: ' + latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6)).openPopup();
+                            }
+                        });
+                        
+                        // Handle edit events
+                        map.on('draw:edited', function(e) {
+                            var layers = e.layers;
+                            layers.eachLayer(function(layer) {
+                                if (layer instanceof L.Circle) {
+                                    // Recalculate circle popup
+                                    var radius = layer.getRadius();
+                                    var walkTime = radius / 1.4;
+                                    var carTime = radius / 13.9;
+                                    var busTime = radius / 8.3;
+                                    
+                                    var popupContent = 
+                                        '<div class="travel-times">' +
+                                        '<strong>Radius:</strong> ' + (radius/1000).toFixed(2) + ' km<br>' +
+                                        '<strong>Travel times:</strong><br>' +
+                                        '🚶 Walking: ' + formatTime(walkTime) + '<br>' +
+                                        '🚗 Car: ' + formatTime(carTime) + '<br>' +
+                                        '🚌 Bus: ' + formatTime(busTime) +
+                                        '</div>';
+                                    
+                                    layer.setPopupContent(popupContent);
+                                }
+                                else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+                                    // Recalculate polyline popup
+                                    var distance = 0;
+                                    var latlngs = layer.getLatLngs();
+                                    
+                                    for (var i = 0; i < latlngs.length - 1; i++) {
+                                        distance += latlngs[i].distanceTo(latlngs[i + 1]);
+                                    }
+                                    
+                                    var walkTime = distance / 1.4;
+                                    var carTime = distance / 13.9;
+                                    var busTime = distance / 8.3;
+                                    
+                                    var popupContent = 
+                                        '<div class="travel-times">' +
+                                        '<strong>Distance:</strong> ' + (distance/1000).toFixed(2) + ' km<br>' +
+                                        '<strong>Travel times:</strong><br>' +
+                                        '🚶 Walking: ' + formatTime(walkTime) + '<br>' +
+                                        '🚗 Car: ' + formatTime(carTime) + '<br>' +
+                                        '🚌 Bus: ' + formatTime(busTime) +
+                                        '</div>';
+                                    
+                                    layer.setPopupContent(popupContent);
+                                }
+                            });
+                        });
+                    }
+                }, 100);
+            });
+        """))
         
         # Save map to temporary file and display it
         self.update_map_display()
