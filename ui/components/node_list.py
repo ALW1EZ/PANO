@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QListWidgetItem,
-    QLabel, QHBoxLayout, QFrame, QSizePolicy
+    QLabel, QHBoxLayout, QFrame, QSizePolicy, QMenu
 )
 from PySide6.QtCore import Qt, QSize, QUrl, QTimer
-from PySide6.QtGui import QPixmap, QIcon, QColor, QPalette, QDesktopServices
+from PySide6.QtGui import QPixmap, QIcon, QColor, QPalette, QDesktopServices, QClipboard, QGuiApplication
 import asyncio
 from qasync import asyncSlot
 import os
@@ -15,6 +15,10 @@ class NodeListItem(QWidget):
         self._destroyed = False
         self.node = node
         self.setup_ui()
+        
+        # Enable context menu
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
         
         # Connect to node's update signal
         if hasattr(self.node, 'node_updated'):
@@ -297,6 +301,106 @@ class NodeListItem(QWidget):
         except RuntimeError:
             # Handle case where widget was deleted
             pass
+
+    def _show_context_menu(self, position):
+        """Show the context menu for this node"""
+        if self._destroyed:
+            return
+            
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #2d2d2d;
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QMenu::item {
+                background-color: transparent;
+                padding: 8px 24px;
+                margin: 2px 4px;
+                border-radius: 4px;
+                color: #CCCCCC;
+            }
+            QMenu::item:selected {
+                background-color: #3d3d3d;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #3d3d3d;
+                margin: 4px 8px;
+            }
+            QMenu::item:disabled {
+                color: #666666;
+            }
+        """)
+        
+        # URL actions
+        url = self.node.node.properties.get('url')
+        if url:
+            action = menu.addAction("Open URL in Browser")
+            action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
+            
+        # Link actions
+        link = self.node.node.properties.get('link')
+        if link:
+            action = menu.addAction("Open Link in Browser")
+            action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(link)))
+            
+        # Image actions
+        image = self.node.node.properties.get('image')
+        if image:
+            action = menu.addAction("Open in Image Viewer")
+            action.triggered.connect(self._open_image_viewer)
+            
+        # Add separator before copy menu if there were previous items
+        if not menu.isEmpty():
+            menu.addSeparator()
+            
+        # Copy submenu
+        copy_menu = menu.addMenu("Copy")
+        copy_menu.setStyleSheet(menu.styleSheet())  # Apply same style to submenu
+        
+        # Add copy actions for all properties
+        for key, value in self.node.node.properties.items():
+            if value and key not in ['image', 'source']:
+                action = copy_menu.addAction(key.capitalize())
+                action.triggered.connect(lambda checked, v=value: QGuiApplication.clipboard().setText(str(v)))
+                
+        # Show menu if it has items
+        if not menu.isEmpty():
+            menu.exec(self.mapToGlobal(position))
+            
+    def _open_image_viewer(self):
+        """Open the image in an ImageViewer"""
+        if self._destroyed:
+            return
+            
+        image_path = self.node.node.properties.get('image')
+        if not image_path:
+            return
+            
+        # Get parent NodeList widget
+        parent_list = self.parent()
+        while parent_list and not isinstance(parent_list, NodeList):
+            parent_list = parent_list.parent()
+            
+        if parent_list:
+            node_id = self.node.node.id
+            if node_id in parent_list._image_viewers and not parent_list._image_viewers[node_id].isHidden():
+                parent_list._image_viewers[node_id].raise_()
+                parent_list._image_viewers[node_id].activateWindow()
+            else:
+                viewer = ImageViewer(image_path, f"PANO - {self.node.node.get_main_display()}")
+                viewer.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+                
+                def on_viewer_closed():
+                    if node_id in parent_list._image_viewers:
+                        del parent_list._image_viewers[node_id]
+                
+                viewer.destroyed.connect(on_viewer_closed)
+                parent_list._image_viewers[node_id] = viewer
+                viewer.show()
 
 class NodeList(QListWidget):
     def __init__(self, graph_manager, parent=None):

@@ -299,20 +299,28 @@ class NodeVisual(QGraphicsObject):
         menu = QMenu()
         menu.setStyleSheet("""
             QMenu {
-                background-color: #2D2D30;
-                color: #CCCCCC;
-                border: 1px solid #3F3F46;
+                background-color: #2d2d2d;
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 4px;
             }
             QMenu::item {
-                padding: 5px 20px;
+                background-color: transparent;
+                padding: 8px 24px;
+                margin: 2px 4px;
+                border-radius: 4px;
+                color: #CCCCCC;
             }
             QMenu::item:selected {
-                background-color: #3F3F46;
+                background-color: #3d3d3d;
             }
             QMenu::separator {
                 height: 1px;
-                background-color: #3F3F46;
-                margin: 4px 0px;
+                background-color: #3d3d3d;
+                margin: 4px 8px;
+            }
+            QMenu::item:disabled {
+                color: #666666;
             }
         """)
         
@@ -326,6 +334,8 @@ class NodeVisual(QGraphicsObject):
 
         # Add transforms submenu
         transforms_menu = menu.addMenu("Transforms")
+        transforms_menu.setStyleSheet(menu.styleSheet())  # Apply same style to submenu
+        
         entity_type = self.node.__class__.__name__
         available_transforms = ENTITY_TRANSFORMS.get(entity_type, [])
         
