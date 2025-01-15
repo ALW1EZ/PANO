@@ -149,6 +149,9 @@ class EmailLookup(Transform):
                             notes += f"\nComment: {item.comment}\n"
                         if hasattr(item, 'rating'):
                             notes += f"\nRating: {item.rating}/5"
+
+                        # print the location object
+                        print(f"Location object: {vars(loc.position)}")
                             
                         entities.append(self._create_entities("location", 
                             latitude=str(loc.position.latitude),
