@@ -65,12 +65,21 @@ class EmailLookup(Transform):
             status.stop_loading(operation_id)
 
     async def _fetch_additional_data(self, target, ghunt_creds: GHuntCreds, as_client: httpx.AsyncClient):
+        status = StatusManager.get()
+        
         # Fetch Maps data
         err, stats, reviews, photos = await gmaps.get_reviews(as_client, target.personId)
-        if not err or err not in ["failed", "private", "empty"]:
+        if err == "failed":
+            status.set_text("Google Maps data retrieval failed - IP might be temporarily blocked by Google")
+        elif err == "private":
+            status.set_text("Google Maps data is private")
+        elif err == "empty":
+            status.set_text("No Google Maps data found")
+        elif not err:
             target.maps_reviews = reviews
             target.maps_photos = photos
             target.maps_stats = stats
+            status.set_text("Successfully retrieved Google Maps data")
 
         # Fetch Calendar data
         cal_found, calendar, calendar_events = await gcalendar.fetch_all(ghunt_creds, as_client, target.email)
@@ -115,21 +124,37 @@ class EmailLookup(Transform):
             player = player_results[0]
             _, player_details = await playgames.get_player(ghunt_creds, as_client, player.id)
 
-            entities.append(self._create_entities("username", username=player.name, platform="Play Games",
-                                               link=f"https://play.google.com/games/profile/{player.id}"))
-            # if last played game, create an event
-            if player_details.profile.last_played_app:
-                entities.append(self._create_entities("event", name=player_details.profile.last_played_app.app_name, 
-                    description=f"Last played game: {player_details.profile.last_played_app.app_name}",
-                    start_date=player_details.profile.last_played_app.timestamp_millis, 
-                    end_date=player_details.profile.last_played_app.timestamp_millis, 
-                    add_to_timeline=True))
+            # Always add username if available
+            if hasattr(player, 'name') and player.name:
+                entities.append(self._create_entities("username", username=player.name, platform="Play Games",
+                                                   link=f"https://play.google.com/games/profile/{player.id}"))
+            
+            # Add last played game event only if the profile has that data
+            if (player_details and hasattr(player_details, 'profile') and 
+                hasattr(player_details.profile, 'last_played_app') and 
+                player_details.profile.last_played_app):
                 
-            if player.avatar_url:
+                last_played = player_details.profile.last_played_app
+                if hasattr(last_played, 'timestamp_millis') and last_played.timestamp_millis:
+                    try:
+                        # Convert milliseconds timestamp to datetime
+                        event_time = datetime.fromtimestamp(last_played.timestamp_millis / 1000)
+                        entities.append(self._create_entities("event", 
+                            name=last_played.app_name, 
+                            description=f"Last played game: {last_played.app_name}",
+                            start_date=event_time,
+                            end_date=event_time,
+                            add_to_timeline=True))
+                    except (ValueError, TypeError) as e:
+                        print(f"Failed to process last played game timestamp: {e}")
+                
+            # Add avatar if available
+            if hasattr(player, 'avatar_url') and player.avatar_url:
                 entities.append(self._create_entities("image", url=player.avatar_url, title="Play Games Avatar",
                                                    description=f"Play Games profile avatar for {player.name}", 
                                                    image=player.avatar_url))
             
+            # Process linked accounts if available
             if player_details and hasattr(player_details, 'linked_accounts'):
                 for account in player_details.linked_accounts:
                     if hasattr(account, 'platform') and hasattr(account, 'username'):
@@ -139,25 +164,27 @@ class EmailLookup(Transform):
 
         # Process Maps data
         if hasattr(target, 'maps_reviews') or hasattr(target, 'maps_photos'):
-            reviews_and_photos = getattr(target, 'maps_reviews', []) + getattr(target, 'maps_photos', [])
-            for item in reviews_and_photos:
-                if hasattr(item, 'location'):
-                    loc = item.location
-                    if hasattr(loc, 'position') and loc.position:
-                        notes = f"Visited {loc.name} at date {item.date.strftime('%Y-%m-%d %H:%M')}\n"
-                        if hasattr(item, 'comment'):
-                            notes += f"\nComment: {item.comment}\n"
-                        if hasattr(item, 'rating'):
-                            notes += f"\nRating: {item.rating}/5"
-
-                        # print the location object
-                        print(f"Location object: {vars(loc.position)}")
-                            
-                        entities.append(self._create_entities("location", 
-                            latitude=str(loc.position.latitude),
-                            longitude=str(loc.position.longitude),
-                            notes=notes
-                        ))
+            try:
+                reviews_and_photos = getattr(target, 'maps_reviews', []) + getattr(target, 'maps_photos', [])
+                for item in reviews_and_photos:
+                    if hasattr(item, 'location'):
+                        loc = item.location
+                        if hasattr(loc, 'position') and loc.position:
+                            notes = f"Visited {loc.name} at date {item.date.strftime('%Y-%m-%d %H:%M')}\n"
+                            if hasattr(item, 'comment'):
+                                notes += f"\nComment: {item.comment}\n"
+                            if hasattr(item, 'rating'):
+                                notes += f"\nRating: {item.rating}/5"
+                                
+                            entities.append(self._create_entities("location", 
+                                latitude=str(loc.position.latitude),
+                                longitude=str(loc.position.longitude),
+                                notes=notes
+                            ))
+            except Exception as e:
+                status = StatusManager.get()
+                status.set_text(f"Error processing Maps data: {str(e)}")
+                print(f"Error processing Maps data: {e}")
 
         # Process Calendar events
         if hasattr(target, 'calendar_events') and target.calendar_events:
