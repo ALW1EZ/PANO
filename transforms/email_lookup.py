@@ -21,8 +21,8 @@ from ghunt.apis.peoplepa import PeoplePaHttp
 from ghunt.helpers import auth, calendar as gcalendar, gmaps, playgames
 
 @dataclass
-class EmailToEntities(Transform):
-    name: ClassVar[str] = "Email to Entities"
+class EmailLookup(Transform):
+    name: ClassVar[str] = "Email Lookup"
     description: ClassVar[str] = "Extract usernames, websites, images, locations and events from email using GHunt"
     input_types: ClassVar[List[str]] = ["Email"]
     output_types: ClassVar[List[str]] = ["Username", "Website", "Image", "Location", "Event"]

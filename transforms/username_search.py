@@ -16,9 +16,9 @@ headers = {
 }
 
 @dataclass
-class UsernameToWebsite(Transform):
-    name: ClassVar[str] = "Username to Website"
-    description: ClassVar[str] = "Extract website or social media usernames from username using Bing and Google search"
+class UsernameSearch(Transform):
+    name: ClassVar[str] = "Username Search"
+    description: ClassVar[str] = "Search for websites and usernames using Bing and Google search"
     input_types: ClassVar[List[str]] = ["Username"]
     output_types: ClassVar[List[str]] = ["Website", "Username"]
     

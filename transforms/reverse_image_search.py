@@ -11,8 +11,8 @@ from entities.image import Image
 from ui.managers.status_manager import StatusManager
 
 @dataclass
-class ReverseImage(Transform):
-    name: ClassVar[str] = "Reverse Image"
+class ReverseImageSearch(Transform):
+    name: ClassVar[str] = "Reverse Image Search"
     description: ClassVar[str] = "Find similar images using Yandex reverse image search"
     input_types: ClassVar[List[str]] = ["Image"]
     output_types: ClassVar[List[str]] = ["Image"]
