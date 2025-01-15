@@ -141,19 +141,35 @@ class EmailToEntities(Transform):
         if hasattr(target, 'maps_reviews') or hasattr(target, 'maps_photos'):
             reviews_and_photos = getattr(target, 'maps_reviews', []) + getattr(target, 'maps_photos', [])
             for item in reviews_and_photos:
-                print(item)
                 if hasattr(item, 'location'):
                     loc = item.location
                     if hasattr(loc, 'geo') and loc.geo:
+                        notes = f"Visited location from {'review' if hasattr(item, 'rating') else 'photo'}"
+                        if hasattr(item, 'comment'):
+                            notes += f"\nComment: {item.comment}\n"
+                        if hasattr(item, 'date'):
+                            notes += f"\nDate: {item.date.strftime('%Y-%m-%d %H:%M')}"
+                        if hasattr(item, 'rating'):
+                            notes += f"\nRating: {item.rating}/5"
+                            
                         entities.append(self._create_entities("location", 
-                            lat=str(loc.geo[0]) if len(loc.geo) > 0 else "",
-                            lon=str(loc.geo[1]) if len(loc.geo) > 1 else "",
-                            description=f"Visited location from {'review' if hasattr(item, 'rating') else 'photo'}"
+                            latitude=str(loc.geo[0]) if len(loc.geo) > 0 else "",
+                            longitude=str(loc.geo[1]) if len(loc.geo) > 1 else "",
+                            notes=notes
                         ))
                     elif hasattr(loc, 'name') and loc.name:
+                        notes = f"Visited location from {'review' if hasattr(item, 'rating') else 'photo'}"
+                        if hasattr(item, 'comment'):
+                            notes += f"\nComment: {item.comment}\n"
+                        if hasattr(item, 'date'):
+                            notes += f"\nDate: {item.date.strftime('%Y-%m-%d %H:%M')}"
+                        if hasattr(item, 'rating'):
+                            notes += f"\nRating: {item.rating}/5"
+
+
                         entities.append(self._create_entities("location", 
                             address=loc.name,
-                            description=f"Visited location from {'review' if hasattr(item, 'rating') else 'photo'}"
+                            notes=notes
                         ))
 
         # Process Calendar events
