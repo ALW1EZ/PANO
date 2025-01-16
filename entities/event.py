@@ -49,27 +49,19 @@ class Event(Entity):
         
         # Set default value for add_to_timeline
         if "add_to_timeline" not in self.properties:
-            self.properties["add_to_timeline"] = True
+            self.properties["add_to_timeline"] = False
     
     def update_label(self):
-        """Update both the node label and timeline title"""
+        """Update the node label"""
         if "name" in self.properties and self.properties["name"]:
             self.label = self.properties["name"]
-            # Also set the title property to match the name for timeline consistency
-            self.properties["title"] = self.properties["name"]
         else:
             self.label = "Event"
-            self.properties["title"] = "Event"
-    
+
     @property
-    def event_name(self) -> str:
+    def name(self) -> str:
         """Get the event name property"""
-        return self.properties.get("name", "") or "Event"
-    
-    @property
-    def title(self) -> str:
-        """Get the title for timeline display"""
-        return self.properties.get("title", self.event_name)
+        return self.properties.get("name", "")
     
     @property
     def description(self) -> str:

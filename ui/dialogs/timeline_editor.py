@@ -7,8 +7,8 @@ from PySide6.QtGui import QColor
 from ..styles.timeline_style import TimelineStyle
 
 class TimelineEvent:
-    def __init__(self, title, description, start_time, end_time, color=None):
-        self.title = title
+    def __init__(self, name, description, start_time, end_time, color=None):
+        self.name = name
         self.description = description
         self.start_time = start_time
         self.end_time = end_time
@@ -26,7 +26,7 @@ class AddEventDialog(QDialog):
     def setup_ui(self):
         layout = QFormLayout(self)
         
-        self.title_edit = QLineEdit()
+        self.name_edit = QLineEdit()
         self.description_edit = QLineEdit()
         
         # Enhanced DateTime selectors
@@ -48,7 +48,7 @@ class AddEventDialog(QDialog):
         self.color_button.clicked.connect(self.choose_color)
         self.color_button.setStyleSheet(f"background-color: {self.selected_color.name()}")
         
-        layout.addRow("Title:", self.title_edit)
+        layout.addRow("Name:", self.name_edit)
         layout.addRow("Description:", self.description_edit)
         layout.addRow("Start Time:", self.start_time_edit)
         layout.addRow("End Time:", self.end_time_edit)
@@ -87,7 +87,7 @@ class EditEventDialog(AddEventDialog):
         self.layout().addRow(self.delete_button)
         
         if event:
-            self.title_edit.setText(event.title)
+            self.name_edit.setText(event.name)
             self.description_edit.setText(event.description)
             self.start_time_edit.setDateTime(QDateTime(event.start_time))
             self.end_time_edit.setDateTime(QDateTime(event.end_time))

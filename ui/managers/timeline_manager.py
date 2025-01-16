@@ -52,7 +52,7 @@ class TimelineManager:
         dialog = AddEventDialog(self.main_window)
         if dialog.exec():
             event = TimelineEvent(
-                dialog.title_edit.text(),
+                dialog.name_edit.text(),
                 dialog.description_edit.text(),
                 dialog.start_time_edit.dateTime().toPython(),
                 dialog.end_time_edit.dateTime().toPython(),
@@ -80,7 +80,7 @@ class TimelineManager:
         events = []
         for event in self.get_events():
             event_data = {
-                'title': event.title,
+                'name': event.name,
                 'description': event.description,
                 'start_time': event.start_time.isoformat(),
                 'end_time': event.end_time.isoformat(),
@@ -100,7 +100,7 @@ class TimelineManager:
         self.clear_events()
         for event_data in events_data:
             event = TimelineEvent(
-                event_data['title'],
+                event_data['name'],
                 event_data['description'],
                 datetime.fromisoformat(event_data['start_time']),
                 datetime.fromisoformat(event_data['end_time']),

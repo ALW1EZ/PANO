@@ -172,7 +172,7 @@ class EntityData:
     type: str
     label: str
     properties: Dict[str, Any]
-    icon: Optional[str] = None
+    color: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert entity data to a dictionary"""
@@ -181,7 +181,7 @@ class EntityData:
             "type": self.type,
             "label": self.label,
             "properties": self.properties,
-            "icon": self.icon
+            "color": self.color
         }
         
     @classmethod
@@ -192,7 +192,7 @@ class EntityData:
             type=data["type"],
             label=data["label"],
             properties=data["properties"],
-            icon=data.get("icon")
+            color=data.get("color")
         )
 
 def entity_property(func: Callable) -> property:
@@ -220,7 +220,6 @@ class Entity(ABC):
     # Class variables that should be overridden by subclasses
     name: ClassVar[str] = "Base Entity"
     description: ClassVar[str] = "Base entity class"
-    icon: ClassVar[Optional[str]] = None
     color: ClassVar[str] = "#607D8B"  # Default color for unknown entity types
     type_label: ClassVar[str] = "BASE"  # Default type label for display
     
@@ -376,7 +375,7 @@ class Entity(ABC):
             type=self.__class__.__name__,
             label=self.label,
             properties=self.properties,
-            icon=self.icon
+            color=self.color
         )
     
     @abstractmethod

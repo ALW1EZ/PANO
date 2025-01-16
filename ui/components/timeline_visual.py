@@ -149,7 +149,7 @@ class TimelineVisual(QWidget):
         content_width = TimelineStyle.BOX_WIDTH - 2*TimelineStyle.CONTENT_MARGIN
         
         painter.setFont(title_font)
-        title_height = self._calculate_text_height(painter, event.title, content_width, title_font)
+        title_height = self._calculate_text_height(painter, event.name, content_width, title_font)
         
         painter.setFont(description_font)
         description_height = self._calculate_text_height(painter, event.description, content_width, description_font)
@@ -165,7 +165,7 @@ class TimelineVisual(QWidget):
             # Draw relative time difference centered on the line
             time_diff = event.start_time - last_event.end_time
             diff_text = self._format_relative_time(time_diff)
-            if last_event.title and "after" not in diff_text:
+            if last_event.name and "after" not in diff_text:
                 diff_text = f"after {diff_text}"
             
             painter.setPen(QPen(TimelineStyle.TEXT_COLOR))
@@ -198,7 +198,7 @@ class TimelineVisual(QWidget):
                            title_height)
         painter.drawText(title_rect,
                         Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap,
-                        event.title)
+                        event.name)
         
         # Draw description
         painter.setFont(description_font)
@@ -293,7 +293,7 @@ class TimelineVisual(QWidget):
         
         # Set fonts to calculate heights
         painter.setFont(title_font)
-        title_height = self._calculate_text_height(painter, event.title, content_width, title_font)
+        title_height = self._calculate_text_height(painter, event.name, content_width, title_font)
         
         painter.setFont(description_font)
         description_height = self._calculate_text_height(painter, event.description, content_width, description_font)
@@ -352,7 +352,7 @@ class TimelineVisual(QWidget):
         
         for event in self.events:
             # Estimate title height (1-2 lines)
-            title_lines = len(event.title) // 40 + 1  # Rough estimate of lines needed
+            title_lines = len(event.name) // 40 + 1  # Rough estimate of lines needed
             title_height = title_lines * line_height
             
             # Estimate description height
@@ -380,7 +380,7 @@ class TimelineVisual(QWidget):
             event_index = self.events.index(event)
             
             # Update the event
-            event.title = dialog.title_edit.text()
+            event.name = dialog.name_edit.text()
             event.description = dialog.description_edit.text()
             event.start_time = dialog.start_time_edit.dateTime().toPython()
             event.end_time = dialog.end_time_edit.dateTime().toPython()

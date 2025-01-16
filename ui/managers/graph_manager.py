@@ -51,7 +51,7 @@ class GraphManager(QObject):
             if hasattr(window, 'timeline_manager'):
                 if entity.start_date and entity.end_date and entity.properties.get("add_to_timeline", True):
                     timeline_event = TimelineEvent(
-                        title=entity.title,
+                        name=entity.name,
                         description=entity.description or "",
                         start_time=entity.start_date,
                         end_time=entity.end_date,
@@ -110,7 +110,7 @@ class GraphManager(QObject):
                 # Add updated event to timeline if it has dates and add_to_timeline is True
                 if entity.start_date and entity.end_date and entity.properties.get("add_to_timeline", True):
                     timeline_event = TimelineEvent(
-                        title=entity.title,
+                        name=entity.name,
                         description=entity.description or "",
                         start_time=entity.start_date,
                         end_time=entity.end_date,

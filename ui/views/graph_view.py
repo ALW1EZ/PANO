@@ -58,7 +58,7 @@ class GraphView(QGraphicsView):
         # Create timeline event if dates are set
         if entity.start_date and entity.end_date:
             timeline_event = TimelineEvent(
-                title=entity.title,
+                name=entity.name,
                 description=entity.description or "",
                 start_time=entity.start_date,
                 end_time=entity.end_date,
