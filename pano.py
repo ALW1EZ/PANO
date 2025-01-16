@@ -1,4 +1,5 @@
 from datetime import datetime
+import importlib
 import aiofiles
 import asyncio
 import json
@@ -9,7 +10,8 @@ from PySide6.QtGui import QAction, QDrag, QIcon, QColor
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QToolBar,
     QLineEdit, QMessageBox, QFileDialog, QListWidget, QLabel,
-    QSplitter, QListWidgetItem, QDockWidget, QVBoxLayout, QWidget, QStatusBar, QPushButton, QDialog
+    QSplitter, QListWidgetItem, QDockWidget, QVBoxLayout, QWidget, QStatusBar, QPushButton, QDialog,
+    QComboBox, QSizePolicy, QListView
 )
 from qasync import QEventLoop, asyncSlot
 
@@ -24,6 +26,8 @@ from ui.managers.status_manager import StatusManager
 from ui.views.graph_view import GraphView, NodeVisual, EdgeVisual
 from ui.components.ai_dock import AIDock
 from ui.components.node_list import NodeList
+from helpers import HELPERS
+from helpers.base import HelperItemDelegate
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -68,11 +72,11 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "6.7.8"
+        self.version = "6.8.0"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
-        
+
         # Ensure entities and transforms are loaded
         load_entities()
         load_transforms()
@@ -276,11 +280,34 @@ class MainWindow(QMainWindow):
         # Add separator
         self.toolbar.addSeparator()
 
-        # Add search bar
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText("Start smart search")
-        self.search_bar.setMinimumWidth(200)
-        self.toolbar.addWidget(self.search_bar)
+        # Add helper dropdown
+        self.helper_combo = QComboBox()
+        self.helper_combo.setMinimumWidth(200)  # Make wider
+        self.helper_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.helper_combo.setEditable(True)
+        self.helper_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.helper_combo.lineEdit().setPlaceholderText("Start smart search")
+        self.helper_combo.setMaxVisibleItems(10)  # Show more items at once
+        
+        # Set custom delegate
+        delegate = HelperItemDelegate()
+        self.helper_combo.setItemDelegate(delegate)
+        
+        # Set view mode and size
+        self.helper_combo.view().setMinimumWidth(500)  # Make dropdown wider
+        self.helper_combo.view().setSpacing(2)  # Add spacing between items
+        
+        # Initial population of helpers
+        self.populate_helpers()
+        
+        # Setup timer for checking new helpers
+        self.helper_check_timer = QTimer(self)
+        self.helper_check_timer.timeout.connect(self.check_for_new_helpers)
+        self.helper_check_timer.start(2000)  # Check every 2 seconds
+        
+        # Connect activation signal
+        self.helper_combo.activated.connect(self.launch_helper)
+        self.toolbar.addWidget(self.helper_combo)
         
         # Add separator
         self.toolbar.addSeparator()
@@ -305,7 +332,46 @@ class MainWindow(QMainWindow):
         self.force_directed_action.setStatusTip("Apply force-directed layout algorithm")
         self.force_directed_action.triggered.connect(self.apply_force_directed_layout)
         self.toolbar.addAction(self.force_directed_action)
-    
+
+    def populate_helpers(self):
+        """Populate the helper combo box with available helpers"""
+        # Store current text if any
+        current_text = self.helper_combo.lineEdit().text()
+        
+        # Clear and repopulate
+        self.helper_combo.clear()
+        for name, helper_class in HELPERS.items():
+            self.helper_combo.addItem(name, helper_class)
+            
+        # Restore text and clear selection
+        self.helper_combo.setCurrentIndex(-1)
+        self.helper_combo.lineEdit().setText(current_text)
+        
+    def check_for_new_helpers(self):
+        """Check for new helper modules and update if needed"""
+        # Reload helpers
+        importlib.reload(importlib.import_module('helpers'))
+        from helpers import HELPERS as new_helpers
+        
+        # Compare with current helpers
+        current_helpers = {self.helper_combo.itemText(i): self.helper_combo.itemData(i) 
+                         for i in range(self.helper_combo.count())}
+        
+        # Update if different
+        if set(new_helpers.keys()) != set(current_helpers.keys()):
+            self.populate_helpers()
+            logger.info("New helpers detected and loaded")
+
+    def launch_helper(self, index):
+        """Launch the selected helper dialog"""
+        helper_class = self.helper_combo.itemData(index)
+        if helper_class:
+            helper = helper_class(self.graph_view.graph_manager, self)
+            helper.show()
+            # Reset combo box
+            self.helper_combo.setCurrentIndex(-1)
+            self.helper_combo.lineEdit().clear()
+
     def _get_stylesheet(self) -> str:
         """Get the application stylesheet"""
         return """
@@ -385,6 +451,43 @@ class MainWindow(QMainWindow):
             }
             QStatusBar QLabel {
                 color: #ffffff;
+            }
+            QComboBox {
+                background-color: #3d3d3d;
+                border: 1px solid #555555;
+                border-radius: 4px;
+                padding: 5px;
+                color: #ffffff;
+                font-size: 13px;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 25px;
+                padding-right: 5px;
+            }
+            QComboBox::down-arrow {
+                image: url(down_arrow.png);
+                width: 14px;
+                height: 14px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2d2d2d;
+                border: 1px solid #555555;
+                color: #ffffff;
+                selection-background-color: #3d3d3d;
+                selection-color: #ffffff;
+                padding: 5px;
+            }
+            QComboBox QAbstractItemView::item {
+                min-height: 70px;
+                padding: 8px;
+                margin: 2px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #353535;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #404040;
             }
         """
     
