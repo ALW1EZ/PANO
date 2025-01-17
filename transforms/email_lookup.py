@@ -137,15 +137,17 @@ class EmailLookup(Transform):
                 last_played = player_details.profile.last_played_app
                 if hasattr(last_played, 'timestamp_millis') and last_played.timestamp_millis:
                     try:
+                        # Convert timestamp to float first in case it's already a datetime
+                        timestamp = float(last_played.timestamp_millis) if isinstance(last_played.timestamp_millis, (int, str)) else last_played.timestamp_millis.timestamp() * 1000
                         # Convert milliseconds timestamp to datetime
-                        event_time = datetime.fromtimestamp(last_played.timestamp_millis / 1000)
+                        event_time = datetime.fromtimestamp(timestamp / 1000)
                         entities.append(self._create_entities("event", 
                             name=last_played.app_name, 
                             description=f"Last played game: {last_played.app_name}",
-                            start_date=event_time,
-                            end_date=event_time,
+                            start_date=event_time.strftime("%Y-%m-%d %H:%M"),  # Format as YYYY-MM-DD HH:mm
+                            end_date=event_time.strftime("%Y-%m-%d %H:%M"),    # Format as YYYY-MM-DD HH:mm
                             add_to_timeline=True))
-                    except (ValueError, TypeError) as e:
+                    except (ValueError, TypeError, AttributeError) as e:
                         print(f"Failed to process last played game timestamp: {e}")
                 
             # Add avatar if available
