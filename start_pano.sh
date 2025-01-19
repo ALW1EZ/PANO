@@ -23,9 +23,25 @@ if [ -f "requirements.txt" ]; then
     pip install -r requirements.txt
 else
     echo -e "${BLUE}Installing required packages...${NC}"
-    pip install PySide6 networkx qasync scipy folium aiofiles requests bs4 googlesearch-python geopy ghunt googletrans markdown2
-    pip install -U g4f
+    pip install PySide6 \
+    networkx \
+    qasync \
+    scipy \
+    folium \
+    aiofiles \
+    requests \
+    bs4 \
+    googlesearch-python \
+    geopy \
+    ghunt \
+    googletrans \
+    markdown2 \
+    g4f
 fi
+
+# Always update g4f to latest version
+pip uninstall -y g4f
+pip install --no-cache-dir g4f
 
 # Start PANO
 echo -e "${GREEN}Starting PANO...${NC}"

@@ -1,0 +1,14 @@
+PySide6
+networkx
+qasync
+scipy
+folium
+aiofiles
+requests
+bs4
+googlesearch-python
+geopy
+ghunt
+googletrans
+markdown2
+g4f
