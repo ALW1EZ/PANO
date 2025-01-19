@@ -271,7 +271,14 @@ class NodeVisual(QGraphicsObject):
         
         # Draw main rectangle with gradient
         painter.setBrush(QBrush(gradient))
-        border_pen = QPen(NodeStyle.get_type_color(self.node.__class__.__name__))
+        
+        # Get border color - use display_color if available, otherwise use type color
+        if hasattr(self.node, 'display_color'):
+            border_color = QColor(self.node.display_color)
+        else:
+            border_color = NodeStyle.get_type_color(self.node.__class__.__name__)
+            
+        border_pen = QPen(border_color)
         border_pen.setWidthF(self.style.border_width)
         painter.setPen(border_pen)
         painter.drawRoundedRect(self.boundingRect(), self.style.radius, self.style.radius)

@@ -15,9 +15,16 @@ class Evidence(Entity):
         self.setup_properties({
             "name": str,
             "description": str,
-            "is_tampered": bool,
+            "tampered": bool,
         })
 
     def update_label(self):
         """Update the label based on evidence name"""
         self.label = self.format_label(["name"])
+
+    @property
+    def display_color(self) -> str:
+        """Get the display color based on tampered status"""
+        if self.properties.get("tampered", False):
+            return "#750800"  # Red for tampered evidence
+        return self.color
