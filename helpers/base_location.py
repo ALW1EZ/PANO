@@ -86,7 +86,7 @@ class FilterDialog(QDialog):
             self.autocomplete_timer.stop()
 
 class LocationSearchHelper(BaseHelper):
-    name = "Base Location Search"
+    name = "Base Location Searcher"
     description = "Search for nearby places using a base location"
     
     # Tag filters
