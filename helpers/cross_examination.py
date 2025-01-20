@@ -396,35 +396,6 @@ class CrossExaminationHelper(BaseHelper):
         
         return statements
 
-    def format_analysis_response(self, response):
-        """Format the analysis response in markdown"""
-        sections = response.split('\n\n')
-        formatted_sections = []
-        
-        for section in sections:
-            if ':' in section:
-                # Get section title and content
-                title, content = section.split(':', 1)
-                # Format section title
-                formatted_title = f"\n## {title.strip()}\n"
-                
-                # Format content
-                formatted_content = []
-                for line in content.strip().split('\n'):
-                    line = line.strip()
-                    if line.startswith('-'):
-                        # Format list items
-                        formatted_content.append(f"* {line[1:].strip()}")
-                    elif line:
-                        # Format regular lines
-                        formatted_content.append(line)
-                
-                formatted_sections.append(formatted_title + '\n'.join(formatted_content))
-            else:
-                formatted_sections.append(section)
-        
-        return '\n\n'.join(formatted_sections)
-
     @asyncSlot()
     async def analyze_testimony(self):
         """Analyze all entity statements using AI"""
@@ -516,7 +487,7 @@ Remember:
 4. Each question should have a clear strategic purpose explained
 5. Questions should be ordered by priority and potential impact
 
-Add graph state if enabled
+Use markdown formatting for your response.
 """
 
             # Add graph state if enabled
@@ -547,23 +518,20 @@ Add graph state if enabled
                 ]
             )
             
-            # Format response in markdown
-            formatted_response = self.format_analysis_response(response)
-            
             # Translate if not English
             target_lang = self.LANGUAGES[self.lang_combo.currentText()]
             if target_lang != "en":
                 try:
                     # Get target language code
                     translation = await self.translator.translate(
-                        formatted_response,
+                        response,
                         dest=target_lang
                     )
-                    formatted_response = translation.text
+                    response = translation.text
                 except Exception as e:
-                    formatted_response += f"\n\n**Translation Error:** {str(e)}"
+                    response += f"\n\n**Translation Error:** {str(e)}"
             
-            self.analysis_output.setMarkdownText(formatted_response)
+            self.analysis_output.setMarkdownText(response)
             
         except Exception as e:
             self.analysis_output.setMarkdownText(f"**Analysis Error:** {str(e)}")
