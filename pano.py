@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QToolBar,
     QLineEdit, QMessageBox, QFileDialog, QListWidget, QLabel,
     QSplitter, QListWidgetItem, QDockWidget, QVBoxLayout, QWidget, QStatusBar, QPushButton, QDialog,
-    QComboBox, QSizePolicy, QListView
+    QComboBox, QSizePolicy, QListView, QMenu
 )
 from qasync import QEventLoop, asyncSlot
 
@@ -72,7 +72,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "7.2.1"
+        self.version = "7.3.1"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -139,6 +139,36 @@ class MainWindow(QMainWindow):
         
         # Connect graph manager signals to node list
         self.graph_view.graph_manager.nodes_changed.connect(self.node_list.refresh_nodes)
+
+    def _setup_actions(self):
+        """Setup application actions"""
+        self.new_action = QAction("New", self)
+        self.new_action.setShortcut("Ctrl+N")
+        self.new_action.setStatusTip("Create new investigation")
+        self.new_action.triggered.connect(self.new_investigation)
+        
+        self.save_action = QAction("Save", self)
+        self.save_action.setShortcut("Ctrl+S")
+        self.save_action.setStatusTip("Save current investigation")
+        self.save_action.triggered.connect(self.save_investigation)
+        
+        self.load_action = QAction("Load", self)
+        self.load_action.setShortcut("Ctrl+O")
+        self.load_action.setStatusTip("Load investigation")
+        self.load_action.triggered.connect(self.load_investigation)
+
+        # View actions
+        self.view_timeline_action = QAction("Timeline", self)
+        self.view_timeline_action.setShortcut("Ctrl+T")
+        self.view_timeline_action.setStatusTip("Show/Hide timeline")
+        self.view_timeline_action.triggered.connect(self.view_timeline)
+        self.addAction(self.view_timeline_action)  # Add to window for shortcut to work
+
+        self.view_tools_action = QAction("Tools", self)
+        self.view_tools_action.setShortcut("Ctrl+L")
+        self.view_tools_action.setStatusTip("Show/Hide tools")
+        self.view_tools_action.triggered.connect(self.view_tools)
+        self.addAction(self.view_tools_action)  # Add to window for shortcut to work
 
     def _setup_ui(self):
         """Setup the complete UI with managers"""
@@ -207,8 +237,9 @@ class MainWindow(QMainWindow):
 
     def setup_left_dock(self):
         """Setup the left dock with entities and transforms"""
-        left_dock = QDockWidget("Tools", self)
-        left_dock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.tools_dock = QDockWidget("Tools", self)
+        self.tools_dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable |
+                                  QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         
@@ -239,33 +270,11 @@ class MainWindow(QMainWindow):
         
         # Add splitter to left dock
         left_layout.addWidget(splitter)
-        left_dock.setWidget(left_widget)
+        self.tools_dock.setWidget(left_widget)
         
         # Add left dock to main window
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, left_dock)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.tools_dock)
         
-    def _setup_actions(self):
-        """Setup application actions"""
-        self.new_action = QAction("New", self)
-        self.new_action.setShortcut("Ctrl+N")
-        self.new_action.setStatusTip("Create new investigation")
-        self.new_action.triggered.connect(self.new_investigation)
-        
-        self.save_action = QAction("Save", self)
-        self.save_action.setShortcut("Ctrl+S")
-        self.save_action.setStatusTip("Save current investigation")
-        self.save_action.triggered.connect(self.save_investigation)
-        
-        self.load_action = QAction("Load", self)
-        self.load_action.setShortcut("Ctrl+O")
-        self.load_action.setStatusTip("Load investigation")
-        self.load_action.triggered.connect(self.load_investigation)
-
-        self.view_timeline_action = QAction("Timeline", self)
-        self.view_timeline_action.setShortcut("Ctrl+T")
-        self.view_timeline_action.setStatusTip("Show/Hide timeline")
-        self.view_timeline_action.triggered.connect(self.view_timeline)
-    
     def setup_toolbar(self):
         """Setup the toolbar with search and basic actions"""
         self.toolbar = QToolBar()
@@ -275,7 +284,14 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.new_action)
         self.toolbar.addAction(self.save_action)
         self.toolbar.addAction(self.load_action)
-        self.toolbar.addAction(self.view_timeline_action)
+
+        # Add Windows button with menu
+        windows_button = QPushButton("Windows")
+        windows_menu = QMenu(self)
+        windows_menu.addAction(self.view_timeline_action)
+        windows_menu.addAction(self.view_tools_action)
+        windows_button.clicked.connect(lambda: windows_menu.exec(windows_button.mapToGlobal(windows_button.rect().bottomLeft())))
+        self.toolbar.addWidget(windows_button)
 
         # Add separator
         self.toolbar.addSeparator()
@@ -286,7 +302,7 @@ class MainWindow(QMainWindow):
         self.helper_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.helper_combo.setEditable(True)
         self.helper_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.helper_combo.lineEdit().setPlaceholderText("Start smart search")
+        self.helper_combo.lineEdit().setPlaceholderText("Search for a helper")
         self.helper_combo.setMaxVisibleItems(10)  # Show more items at once
         
         # Set custom delegate
@@ -398,6 +414,33 @@ class MainWindow(QMainWindow):
             }
             QToolBar QToolButton:hover {
                 background-color: #4d4d4d;
+            }
+            QToolBar QPushButton {
+                background-color: #3d3d3d;
+                border: none;
+                border-radius: 4px;
+                color: #ffffff;
+                min-width: 68px;
+                height: 20px;
+            }
+            QToolBar QPushButton:hover {
+                background-color: #4d4d4d;
+            }
+            QMenu {
+                background-color: #2d2d2d;
+                border: 1px solid #555555;
+                color: #ffffff;
+                padding: 5px;
+            }
+            QMenu::item {
+                padding: 5px 25px;
+                border-radius: 3px;
+            }
+            QMenu::item:selected {
+                background-color: #3d3d3d;
+            }
+            QMenu::item:checked {
+                background-color: #404040;
             }
             QLineEdit {
                 background-color: #3d3d3d;
@@ -683,6 +726,11 @@ class MainWindow(QMainWindow):
         """Apply force-directed layout"""
         if hasattr(self, 'layout_manager'):
             self.layout_manager.apply_force_directed_layout()
+
+    def view_tools(self):
+        """Show/Hide the tools dock"""
+        self.tools_dock.setVisible(not self.tools_dock.isVisible())
+        self.tools_dock.raise_()
 
 def main():
     """Main entry point for the application"""
