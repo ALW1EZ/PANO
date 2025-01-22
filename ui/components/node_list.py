@@ -24,12 +24,12 @@ class NodeListItem(QWidget):
         if hasattr(self.node, 'node_updated'):
             self.node.node_updated.connect(self.update_display)
         
-        # Load image if available
+        # Load image if available and schedule size update
         if not self._destroyed and self.node.node.properties.get("image"):
             asyncio.create_task(self._load_initial_image())
-        
-        # Force initial size calculation
-        QTimer.singleShot(0, self._update_size)
+        else:
+            # If no image, still ensure proper initial size
+            QTimer.singleShot(100, self._update_size)  # Small delay to ensure UI is ready
             
     def _update_size(self):
         """Update widget size and propagate to list item"""
@@ -45,8 +45,9 @@ class NodeListItem(QWidget):
             # For properties, calculate based on available width
             props_height = 0
             if self.props_label.isVisible():
-                # Calculate available width for properties (total width - margins - padding)
-                available_width = self.width() - 240 - 160 - 24 * 2 - 40 - 16  # notes width, image width, spacing, margins, padding
+                # Calculate available width based on image container visibility
+                image_width = 160 + 24 if self.left_container.isVisible() else 0  # image width + spacing
+                available_width = self.width() - 240 - image_width - 40 - 16  # notes width, spacing, margins, padding
                 # Force layout update to get accurate height
                 self.props_label.updateGeometry()
                 props_height = self.props_label.heightForWidth(available_width) or self.props_label.sizeHint().height()
@@ -68,8 +69,12 @@ class NodeListItem(QWidget):
             if notes_height > 0:
                 content_height = max(content_height, notes_height + 60)  # Compare with notes height + padding
             
-            # Ensure minimum height
-            total_height = max(200, content_height + 40)  # Add extra padding for overall container
+            # Ensure minimum height based on content and image container
+            min_height = 200
+            if self.left_container.isVisible():
+                min_height = max(min_height, 160 + 40)  # image container height + padding
+            
+            total_height = max(min_height, content_height + 40)  # Add extra padding for overall container
             
             # Update size hint
             self.list_item.setSizeHint(QSize(self.width(), total_height))
@@ -89,6 +94,8 @@ class NodeListItem(QWidget):
             await self.node._load_image(self.node.node.properties.get("image"))
             if not self._destroyed:
                 self.update_image()
+                # Update size after image is loaded
+                QTimer.singleShot(100, self._update_size)  # Small delay to ensure image is rendered
         except Exception:
             pass  # Handle image loading errors gracefully
         
@@ -98,22 +105,22 @@ class NodeListItem(QWidget):
         layout.setSpacing(24)
         
         # Left side container for image
-        left_container = QFrame()
-        left_container.setStyleSheet("""
+        self.left_container = QFrame()  # Make it instance variable to access later
+        self.left_container.setStyleSheet("""
             QFrame {
                 background-color: #1e1e1e;
                 border-radius: 10px;
             }
         """)
-        left_container.setFixedWidth(160)
-        left_layout = QVBoxLayout(left_container)
+        self.left_container.setFixedWidth(160)
+        left_layout = QVBoxLayout(self.left_container)
         left_layout.setContentsMargins(5, 5, 5, 5)
         left_layout.setSpacing(0)
         
         # Center container for image
-        image_center = QFrame()
-        image_center.setStyleSheet("background: transparent;")
-        image_layout = QVBoxLayout(image_center)
+        self.image_center = QFrame()  # Make it instance variable to access later
+        self.image_center.setStyleSheet("background: transparent;")
+        image_layout = QVBoxLayout(self.image_center)
         image_layout.setContentsMargins(0, 0, 0, 0)
         image_layout.setSpacing(0)
         
@@ -124,9 +131,14 @@ class NodeListItem(QWidget):
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         image_layout.addWidget(self.image_label, alignment=Qt.AlignmentFlag.AlignCenter)
         
-        left_layout.addWidget(image_center, alignment=Qt.AlignmentFlag.AlignCenter)
+        left_layout.addWidget(self.image_center, alignment=Qt.AlignmentFlag.AlignCenter)
         
-        layout.addWidget(left_container)
+        layout.addWidget(self.left_container)
+        
+        # If no image, minimize the container height
+        if not self.node.node.properties.get("image"):
+            self.left_container.setFixedHeight(0)
+            self.left_container.hide()
         
         # Middle container for text content
         middle_container = QVBoxLayout()
@@ -263,8 +275,12 @@ class NodeListItem(QWidget):
                     Qt.TransformationMode.SmoothTransformation
                 )
                 self.image_label.setPixmap(pixmap)
+                self.left_container.setFixedHeight(160)  # Reset height when image is present
+                self.left_container.show()
             else:
                 self.image_label.clear()
+                self.left_container.setFixedHeight(0)  # Minimize height when no image
+                self.left_container.hide()
         except RuntimeError:
             # Handle case where widget was deleted
             pass
@@ -471,13 +487,19 @@ class NodeList(QListWidget):
                     item = self._node_items[node_id]
                     widget = self.itemWidget(item)
                     if widget:
-                        await widget.update_display()
+                        # Only update text and properties, skip image reload
+                        widget.main_label.setText(widget.node.node.get_main_display())
+                        widget.update_properties()
+                        widget.update_notes()
+                        widget.update_image()  # This only updates if image is already loaded
+                        QTimer.singleShot(0, widget._update_size)
                 else:
                     # Create new item
                     item = QListWidgetItem(self)
                     widget = NodeListItem(node)
                     widget.list_item = item  # Store reference to list item
-                    item.setSizeHint(widget.sizeHint())
+                    # Set initial size hint with minimum height
+                    item.setSizeHint(QSize(widget.width(), 200))  # Minimum height
                     self.setItemWidget(item, widget)
                     self._node_items[node_id] = item
                 

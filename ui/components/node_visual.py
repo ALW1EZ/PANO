@@ -418,6 +418,14 @@ class NodeVisual(QGraphicsObject):
             # Get the updated properties
             updated_properties = dialog.get_properties()
             
+            # Check if image property was removed or cleared
+            old_image = self.node.properties.get("image")
+            new_image = updated_properties.get("image")
+            if old_image and (not new_image or new_image.strip() == ""):
+                # Clear the image if URL was removed
+                self.original_pixmap = None
+                self.image_item.setPixmap(QPixmap())
+            
             # Update the node's properties
             for key, value in updated_properties.items():
                 self.node.properties[key] = value
