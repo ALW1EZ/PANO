@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QMenu
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QMenu, QHBoxLayout, QLineEdit, QPushButton
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtCore import QUrl, Slot, QPoint, Qt
 from PySide6.QtGui import QAction
@@ -10,6 +10,8 @@ import logging
 import json
 from folium.features import DivIcon
 from math import pi, cos
+import requests
+from ui.managers.status_manager import StatusManager
 
 class MapVisual(QWidget):
     # Average speeds in meters per second
@@ -23,6 +25,18 @@ class MapVisual(QWidget):
         super().__init__(parent)
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Add search bar layout
+        self.search_layout = QHBoxLayout()
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Enter location or coordinates...")
+        self.search_button = QPushButton("Search")
+        self.search_button.clicked.connect(self.handle_search)
+        self.search_box.returnPressed.connect(self.handle_search)
+        
+        self.search_layout.addWidget(self.search_box)
+        self.search_layout.addWidget(self.search_button)
+        self.layout.addLayout(self.search_layout)
         
         # Create web view for the map
         self.web_view = QWebEngineView()
@@ -467,4 +481,56 @@ class MapVisual(QWidget):
         self.folium_map.location = [lat, lon]
         if zoom is not None:
             self.folium_map.zoom_start = zoom
-        self.update_map_display() 
+        self.update_map_display()
+
+    def handle_search(self):
+        query = self.search_box.text().strip()
+        if not query:
+            return
+            
+        status = StatusManager.get()
+        operation_id = status.start_loading("Location Search")
+        status.set_text("Searching location...")
+            
+        try:
+            # Try to parse as "lat, lon"
+            parts = query.split(',')
+            if len(parts) == 2:
+                lat = float(parts[0].strip())
+                lon = float(parts[1].strip())
+                if -90 <= lat <= 90 and -180 <= lon <= 180:
+                    self.set_center(lat, lon, zoom=13)
+                    self.search_box.clear()
+                    status.set_text(f"Found coordinates: {lat:.6f}, {lon:.6f}")
+                    return
+        except ValueError:
+            pass
+            
+        # If not coordinates, use Nominatim geocoding
+        try:
+            response = requests.get(
+                'https://nominatim.openstreetmap.org/search',
+                params={
+                    'q': query,
+                    'format': 'json',
+                    'limit': 1
+                },
+                headers={'User-Agent': 'PANO_APP'}
+            )
+            results = response.json()
+            
+            if results:
+                location = results[0]
+                lat = float(location['lat'])
+                lon = float(location['lon'])
+                self.set_center(lat, lon, zoom=13)
+                # Add a temporary marker
+                self.add_marker(lat, lon, popup=location.get('display_name', query))
+                self.search_box.clear()
+                status.set_text(f"Found location: {location.get('display_name', query)}")
+            else:
+                status.set_text(f"No results found for: {query}")
+        except Exception as e:
+            status.set_text(f"Error during search: {str(e)}")
+        finally:
+            status.stop_loading(operation_id) 
