@@ -1,6 +1,6 @@
 from typing import Dict, List, Tuple, Optional, Any, Callable
 from dataclasses import dataclass
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QMenu, QToolButton, QDialog, QListWidget, QListWidgetItem, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QMenu, QToolButton, QDialog, QListWidget, QListWidgetItem, QLabel, QCheckBox, QSizePolicy
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtCore import QUrl, Slot, Qt, QPoint
 from PySide6.QtGui import QAction, QCloseEvent
@@ -34,42 +34,50 @@ class RouteData:
 class Building:
     contour: List[List[float]]
     height: float
+    name: Optional[str] = None
+    type: Optional[str] = None
+    amenity: Optional[str] = None
+    address: Optional[str] = None
+    opening_hours: Optional[str] = None
+    cuisine: Optional[str] = None
+    phone: Optional[str] = None
+    website: Optional[str] = None
 
 class MapStyles:
     DIALOG = """
-        QDialog {
-            background-color: #1e1e1e;
-            color: #ffffff;
-        }
-        QLabel {
-            color: #ffffff;
-        }
-        QListWidget {
-            background-color: #2d2d2d;
-            border: 1px solid #555555;
-            color: #ffffff;
-        }
-        QListWidget::item {
-            padding: 5px;
-        }
-        QListWidget::item:selected {
-            background-color: #3d3d3d;
-        }
-        QListWidget::item:hover {
-            background-color: #353535;
-        }
-        QPushButton {
-            background-color: #3d3d3d;
-            border: none;
-            border-radius: 4px;
-            padding: 5px 10px;
-            color: #ffffff;
-            min-width: 80px;
-            height: 24px;
-        }
-        QPushButton:hover {
-            background-color: #4d4d4d;
-        }
+            QDialog {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QListWidget {
+                background-color: #2d2d2d;
+                border: 1px solid #555555;
+                color: #ffffff;
+            }
+            QListWidget::item {
+                padding: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #3d3d3d;
+            }
+            QListWidget::item:hover {
+                background-color: #353535;
+            }
+            QPushButton {
+                background-color: #3d3d3d;
+                border: none;
+                border-radius: 4px;
+                padding: 5px 10px;
+                color: #ffffff;
+                min-width: 80px;
+                height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #4d4d4d;
+            }
     """
 
 class LocationService:
@@ -115,6 +123,9 @@ class BuildingService:
         [out:json][timeout:25];
         (
           way["building"](around:{radius},{lat},{lon});
+          // Also fetch amenities in the area
+          node["amenity"](around:{radius},{lat},{lon});
+          way["amenity"](around:{radius},{lat},{lon});
         );
         out body geom;
         """
@@ -125,20 +136,109 @@ class BuildingService:
                     data = await response.json()
                     buildings = []
                     for element in data.get('elements', []):
-                        if 'geometry' in element:
+                        tags = element.get('tags', {})
+                        
+                        # Skip non-building nodes unless they are amenities
+                        if element['type'] == 'node' and 'building' not in tags and 'amenity' not in tags:
+                            continue
+                            
+                        # Get coordinates
+                        if element['type'] == 'way' and 'geometry' in element:
                             coords = [[p['lon'], p['lat']] for p in element['geometry']]
-                            if len(coords) >= 3:
-                                height = element.get('tags', {}).get('height', DEFAULT_BUILDING_HEIGHT)
+                        elif element['type'] == 'node':
+                            coords = [[element['lon'], element['lat']]]
+                            # Create a smaller square around the point for visualization
+                            lat_offset = 0.00002  # Roughly 2 meters
+                            lon_offset = 0.00002 / cos(radians(element['lat']))
+                            coords = [
+                                [element['lon'] - lon_offset, element['lat'] - lat_offset],
+                                [element['lon'] + lon_offset, element['lat'] - lat_offset],
+                                [element['lon'] + lon_offset, element['lat'] + lat_offset],
+                                [element['lon'] - lon_offset, element['lat'] + lat_offset],
+                                [element['lon'] - lon_offset, element['lat'] - lat_offset]
+                            ]
+                        else:
+                            continue
+
+                        if len(coords) >= 3:  # Need at least 3 points for a polygon
+                            # Get building height - only for actual buildings
+                            height = DEFAULT_BUILDING_HEIGHT
+                            if 'building' in tags:
+                                height = tags.get('height', DEFAULT_BUILDING_HEIGHT)
                                 try:
                                     height = float(height)
                                 except ValueError:
                                     height = DEFAULT_BUILDING_HEIGHT
-                                
-                                buildings.append(Building(coords, height))
+                            elif element['type'] == 'node' or tags.get('amenity') in {'school', 'university', 'library'}:
+                                height = 1  # Make amenity points and educational areas flat
+                            
+                            # Get additional information
+                            building = Building(
+                                contour=coords,
+                                height=height,
+                                name=tags.get('name'),
+                                type=tags.get('building') or tags.get('amenity'),
+                                amenity=tags.get('amenity'),
+                                address=BuildingService._format_address(tags),
+                                opening_hours=tags.get('opening_hours'),
+                                cuisine=tags.get('cuisine'),
+                                phone=tags.get('phone'),
+                                website=tags.get('website')
+                            )
+                            buildings.append(building)
                     return buildings
         except Exception as e:
             logging.error(f"Error fetching buildings: {e}")
             return []
+
+    @staticmethod
+    def _format_address(tags: Dict[str, str]) -> Optional[str]:
+        """Format the address from OSM tags"""
+        addr_parts = []
+        if 'addr:street' in tags:
+            house_number = tags.get('addr:housenumber', '')
+            street = tags.get('addr:street', '')
+            addr_parts.append(f"{street} {house_number}".strip())
+        if 'addr:city' in tags:
+            addr_parts.append(tags['addr:city'])
+        if 'addr:postcode' in tags:
+            addr_parts.append(tags['addr:postcode'])
+        return ', '.join(addr_parts) if addr_parts else None
+
+    @staticmethod
+    def _format_tooltip(building: Building) -> str:
+        """Format building information for tooltip display"""
+        lines = []
+        
+        # Add name if available
+        if building.name:
+            lines.append(f"📍 {building.name}")
+        
+        # Add type/amenity
+        if building.type:
+            type_str = building.type.replace('_', ' ').title()
+            lines.append(f"🏢 {type_str}")
+        
+        # Add address
+        if building.address:
+            lines.append(f"📮 {building.address}")
+        
+        # Add cuisine for restaurants
+        if building.cuisine:
+            cuisine_str = building.cuisine.replace(';', ', ').replace('_', ' ').title()
+            lines.append(f"🍽️ {cuisine_str}")
+        
+        # Add opening hours
+        if building.opening_hours:
+            lines.append(f"🕒 {building.opening_hours}")
+        
+        # Add contact info
+        if building.phone:
+            lines.append(f"📞 {building.phone}")
+        if building.website:
+            lines.append(f"🌐 {building.website}")
+        
+        return '\n'.join(lines) if lines else "Building"
 
 class MarkerSelectorDialog(QDialog):
     def __init__(self, markers: Dict[int, Tuple[float, float]], parent: Optional[QWidget] = None):
@@ -170,9 +270,91 @@ class MarkerSelectorDialog(QDialog):
         button_layout.addWidget(self.connect_button)
         button_layout.addWidget(self.cancel_button)
         layout.addLayout(button_layout)
-    
+        
     def get_selected_markers(self) -> List[Tuple[float, float]]:
         return [item.data(Qt.UserRole) for item in self.marker_list.selectedItems()]
+
+class PlacesDialog(QDialog):
+    def __init__(self, layer_toggles: Dict[str, QCheckBox], parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Places")
+        self.setModal(True)
+        self.layer_toggles = layer_toggles
+        self.dialog_toggles = {}  # Store dialog's own checkboxes
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+                font-size: 14px;
+                padding: 5px;
+            }
+            QCheckBox {
+                color: white;
+                background: transparent;
+                padding: 8px;
+                font-size: 13px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: #2d2d2d;
+                border: 1px solid #555555;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #3d3d3d;
+                border: 1px solid #777777;
+                border-radius: 3px;
+            }
+            QPushButton {
+                background-color: #3d3d3d;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                color: #ffffff;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #4d4d4d;
+            }
+        """)
+        self._init_ui()
+        self.resize(250, 300)
+    
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(5)
+        layout.setContentsMargins(15, 15, 15, 15)
+        
+        title = QLabel("Show Places:")
+        title.setStyleSheet("font-weight: bold;")
+        layout.addWidget(title)
+        
+        # Create new checkboxes that mirror the state of original toggles
+        for key, original_toggle in self.layer_toggles.items():
+            checkbox = QCheckBox(original_toggle.text(), self)
+            checkbox.setChecked(original_toggle.isChecked())
+            checkbox.stateChanged.connect(lambda state, k=key: self._sync_toggle_state(k, state))
+            self.dialog_toggles[key] = checkbox
+            layout.addWidget(checkbox)
+        
+        layout.addStretch()
+        
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        button_layout.addWidget(close_button)
+        layout.addLayout(button_layout)
+    
+    def _sync_toggle_state(self, key: str, state: int) -> None:
+        """Sync the state between dialog checkbox and original toggle"""
+        self.layer_toggles[key].setChecked(state == Qt.CheckState.Checked.value)
 
 class MapVisual(QWidget):
     # Transport speeds in meters per second
@@ -208,9 +390,73 @@ class MapVisual(QWidget):
     def _init_ui(self) -> None:
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)  # Reduce spacing between elements
         
+        self._init_layer_toggles()
         self._init_search_bar()
         self._init_web_view()
+        
+        # Make the web_view stretch to fill available space
+        self.web_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+    def _init_layer_toggles(self) -> None:
+        """Initialize layer toggle checkboxes with proper parent ownership"""
+        self.layer_toggles = {}
+        
+        # Create a container widget to own the checkboxes
+        self.toggle_container = QWidget(self)
+        toggle_layout = QVBoxLayout(self.toggle_container)
+        
+        # 3D Buildings toggle (checked by default)
+        self.layer_toggles['buildings'] = QCheckBox("3D Buildings", self.toggle_container)
+        self.layer_toggles['buildings'].setChecked(True)
+        self.layer_toggles['buildings'].stateChanged.connect(self._handle_layer_toggle)
+        toggle_layout.addWidget(self.layer_toggles['buildings'])
+        
+        # Restaurants/Cafes toggle
+        self.layer_toggles['food'] = QCheckBox("Restaurants/Cafes", self.toggle_container)
+        self.layer_toggles['food'].stateChanged.connect(self._handle_layer_toggle)
+        toggle_layout.addWidget(self.layer_toggles['food'])
+        
+        # Shops toggle
+        self.layer_toggles['shops'] = QCheckBox("Shops", self.toggle_container)
+        self.layer_toggles['shops'].stateChanged.connect(self._handle_layer_toggle)
+        toggle_layout.addWidget(self.layer_toggles['shops'])
+        
+        # Educational toggle
+        self.layer_toggles['education'] = QCheckBox("Educational", self.toggle_container)
+        self.layer_toggles['education'].stateChanged.connect(self._handle_layer_toggle)
+        toggle_layout.addWidget(self.layer_toggles['education'])
+        
+        # Other places toggle
+        self.layer_toggles['other'] = QCheckBox("Other Places", self.toggle_container)
+        self.layer_toggles['other'].stateChanged.connect(self._handle_layer_toggle)
+        toggle_layout.addWidget(self.layer_toggles['other'])
+        
+        # Set common style for all checkboxes
+        for toggle in self.layer_toggles.values():
+            toggle.setStyleSheet("""
+                QCheckBox {
+                    color: white;
+                    background: transparent;
+                    padding: 8px;
+                    font-size: 13px;
+                }
+                QCheckBox::indicator {
+                    width: 18px;
+                    height: 18px;
+                }
+                QCheckBox::indicator:unchecked {
+                    background-color: #2d2d2d;
+                    border: 1px solid #555555;
+                    border-radius: 3px;
+                }
+                QCheckBox::indicator:checked {
+                    background-color: #3d3d3d;
+                    border: 1px solid #777777;
+                    border-radius: 3px;
+                }
+            """)
 
     def _init_search_bar(self) -> None:
         self.search_layout = QHBoxLayout()
@@ -222,6 +468,27 @@ class MapVisual(QWidget):
         self.layout.addLayout(self.search_layout)
 
     def _init_tools_button(self) -> None:
+        # Create places button
+        self.places_button = QToolButton(self)
+        self.places_button.setText("📍")
+        self.places_button.setStyleSheet("""
+            QToolButton {
+                background-color: #3d3d3d;
+                border: none;
+                border-radius: 4px;
+                padding: 5px;
+                color: #ffffff;
+                min-width: 24px;
+                height: 24px;
+            }
+            QToolButton:hover {
+                background-color: #4d4d4d;
+            }
+        """)
+        self.places_button.clicked.connect(self._show_places_dialog)
+        self.search_layout.addWidget(self.places_button)
+        
+        # Create tools button
         self.tools_button = QToolButton(self)
         self.tools_button.setText("🛠")
         self.tools_button.setPopupMode(QToolButton.InstantPopup)
@@ -305,7 +572,7 @@ class MapVisual(QWidget):
         
         self.search_layout.addWidget(self.search_box)
         self.search_layout.addWidget(self.search_button)
-
+        
     def _init_web_view(self) -> None:
         self.web_view = QWebEngineView()
         self.web_view.settings().setAttribute(
@@ -404,23 +671,211 @@ class MapVisual(QWidget):
         if not self.deck:
             return
 
-        # Add markers
-        marker_data = [{"coordinates": [lon, lat]} for lat, lon in self.markers.values()]
-        marker_layer = pdk.Layer(
-            "ScatterplotLayer",
-            data=marker_data,
-            get_position="coordinates",
-            get_fill_color=[18, 136, 232],
-            get_line_color=[255, 255, 255],
-            line_width_min_pixels=1,
-            get_radius=20,
-            radius_min_pixels=3,
-            radius_max_pixels=10,
-            pickable=True,
-            opacity=0.8,
-            stroked=True
-        )
-        self.deck.layers.append(marker_layer)
+        # Add 3D buildings around markers, avoiding duplicates for nearby markers
+        processed_areas = set()
+        # Create a copy of markers values for safe iteration
+        for lat, lon in list(self.markers.values()):
+            # Check if we already loaded buildings for a nearby location
+            skip = False
+            for processed_lat, processed_lon in processed_areas:
+                if (abs(processed_lat - lat) < MARKER_PROXIMITY_THRESHOLD * 2 and 
+                    abs(processed_lon - lon) < MARKER_PROXIMITY_THRESHOLD * 2):
+                    skip = True
+                    break
+            
+            if skip:
+                continue
+                
+            buildings = await BuildingService.fetch_buildings(lat, lon)
+            if buildings:
+                building_data = []
+                point_place_data = {
+                    'food': [],      # For restaurants, cafes, bars
+                    'shops': [],     # For shops and stores
+                    'other': []      # For other amenities
+                }
+                area_place_data = {
+                    'education': [], # For educational facilities
+                    'other': []      # For other areas
+                }
+                
+                for b in buildings:
+                    try:
+                        if b.amenity:  # This is a place/amenity
+                            # Get center point for the place
+                            center_lon = sum(p[0] for p in b.contour) / len(b.contour)
+                            center_lat = sum(p[1] for p in b.contour) / len(b.contour)
+                            
+                            place_info = {
+                                "position": [center_lon, center_lat],
+                                "tooltip": BuildingService._format_tooltip(b)
+                            }
+                            
+                            # Determine if this should be a point or area
+                            is_area = (
+                                b.amenity in {'school', 'university', 'library', 'hospital', 'parking'} or
+                                len(b.contour) > 5  # If it has a complex shape, treat as area
+                            )
+                            
+                            if is_area:
+                                area_data = {
+                                    "contour": b.contour,
+                                    "height": 1,  # Keep areas flat
+                                    "tooltip": BuildingService._format_tooltip(b)
+                                }
+                                if b.amenity in {'school', 'university', 'library'}:
+                                    area_data["color"] = [100, 100, 255, 150]  # Transparent blue
+                                    area_place_data['education'].append(area_data)
+                                else:
+                                    area_data["color"] = [255, 200, 0, 150]  # Transparent yellow
+                                    area_place_data['other'].append(area_data)
+                            else:
+                                # Point-based places (restaurants, shops, etc.)
+                                if b.amenity in {'restaurant', 'cafe', 'bar'}:
+                                    place_info["color"] = [255, 100, 100]  # Red
+                                    point_place_data['food'].append(place_info)
+                                elif b.amenity in {'shop', 'store', 'supermarket'}:
+                                    place_info["color"] = [100, 255, 100]  # Green
+                                    point_place_data['shops'].append(place_info)
+                                else:
+                                    place_info["color"] = [255, 200, 0]  # Yellow
+                                    point_place_data['other'].append(place_info)
+                        else:  # This is a regular building
+                            data = {
+                                "contour": b.contour,
+                                "height": b.height,
+                                "tooltip": BuildingService._format_tooltip(b),
+                                "color": [74, 80, 87, 200]  # Default gray for buildings
+                            }
+                            building_data.append(data)
+                    except Exception as e:
+                        logging.error(f"Error processing building data: {e}")
+                        continue
+                
+                # Add buildings layer first (bottom layer)
+                if building_data and self.layer_toggles['buildings'].isChecked():
+                    building_layer = pdk.Layer(
+                        "PolygonLayer",
+                        building_data,  # Pass the list directly
+                        get_polygon="contour",
+                        get_elevation="height",
+                        elevation_scale=1,
+                        extruded=True,
+                        wireframe=True,
+                        get_fill_color="color",
+                        get_line_color=[255, 255, 255],
+                        line_width_min_pixels=1,
+                        pickable=True,
+                        opacity=0.8,
+                        tooltip={"text": "{tooltip}"}
+                    )
+                    self.deck.layers.append(building_layer)
+                
+                # Add educational areas
+                if area_place_data['education'] and self.layer_toggles['education'].isChecked():
+                    edu_layer = pdk.Layer(
+                        "PolygonLayer",
+                        area_place_data['education'],
+                        get_polygon="contour",
+                        get_elevation="height",
+                        elevation_scale=1,
+                        extruded=True,
+                        wireframe=False,
+                        get_fill_color="color",
+                        get_line_color=[255, 255, 255],
+                        line_width_min_pixels=1,
+                        pickable=True,
+                        opacity=0.5,
+                        tooltip={"text": "{tooltip}"}
+                    )
+                    self.deck.layers.append(edu_layer)
+                
+                # Add other areas
+                if area_place_data['other'] and self.layer_toggles['other'].isChecked():
+                    other_area_layer = pdk.Layer(
+                        "PolygonLayer",
+                        area_place_data['other'],
+                        get_polygon="contour",
+                        get_elevation="height",
+                        elevation_scale=1,
+                        extruded=True,
+                        wireframe=False,
+                        get_fill_color="color",
+                        get_line_color=[255, 255, 255],
+                        line_width_min_pixels=1,
+                        pickable=True,
+                        opacity=0.5,
+                        tooltip={"text": "{tooltip}"}
+                    )
+                    self.deck.layers.append(other_area_layer)
+                
+                # Add food places
+                if point_place_data['food'] and self.layer_toggles['food'].isChecked():
+                    food_layer = pdk.Layer(
+                        "ScatterplotLayer",
+                        point_place_data['food'],
+                        get_position="position",
+                        get_fill_color="color",
+                        get_line_color=[255, 255, 255],
+                        line_width_min_pixels=2,
+                        get_radius=15,
+                        radius_min_pixels=5,
+                        radius_max_pixels=15,
+                        pickable=True,
+                        opacity=0.8,
+                        stroked=True,
+                        tooltip={"text": "{tooltip}"},
+                        get_elevation=1000,
+                        elevation_scale=1,
+                        parameters={"depthTest": False}
+                    )
+                    self.deck.layers.append(food_layer)
+                
+                # Add shop places
+                if point_place_data['shops'] and self.layer_toggles['shops'].isChecked():
+                    shop_layer = pdk.Layer(
+                        "ScatterplotLayer",
+                        point_place_data['shops'],
+                        get_position="position",
+                        get_fill_color="color",
+                        get_line_color=[255, 255, 255],
+                        line_width_min_pixels=2,
+                        get_radius=15,
+                        radius_min_pixels=5,
+                        radius_max_pixels=15,
+                        pickable=True,
+                        opacity=0.8,
+                        stroked=True,
+                        tooltip={"text": "{tooltip}"},
+                        get_elevation=1000,
+                        elevation_scale=1,
+                        parameters={"depthTest": False}
+                    )
+                    self.deck.layers.append(shop_layer)
+                
+                # Add other point places
+                if point_place_data['other'] and self.layer_toggles['other'].isChecked():
+                    other_point_layer = pdk.Layer(
+                        "ScatterplotLayer",
+                        point_place_data['other'],
+                        get_position="position",
+                        get_fill_color="color",
+                        get_line_color=[255, 255, 255],
+                        line_width_min_pixels=2,
+                        get_radius=15,
+                        radius_min_pixels=5,
+                        radius_max_pixels=15,
+                        pickable=True,
+                        opacity=0.8,
+                        stroked=True,
+                        tooltip={"text": "{tooltip}"},
+                        get_elevation=1000,
+                        elevation_scale=1,
+                        parameters={"depthTest": False}
+                    )
+                    self.deck.layers.append(other_point_layer)
+                
+                processed_areas.add((lat, lon))
 
         # Add routes if any exist
         if self.routes:
@@ -436,7 +891,7 @@ class MapVisual(QWidget):
             
             route_layer = pdk.Layer(
                 "PathLayer",
-                data=route_data,
+                route_data,
                 get_path="path",
                 get_width=5,
                 get_color=[255, 140, 0],
@@ -450,25 +905,28 @@ class MapVisual(QWidget):
             )
             self.deck.layers.append(route_layer)
 
-        # Add 3D buildings around each marker
-        for lat, lon in self.markers.values():
-            buildings = await BuildingService.fetch_buildings(lat, lon)
-            if buildings:
-                building_layer = pdk.Layer(
-                    "PolygonLayer",
-                    data=[{"contour": b.contour, "height": b.height} for b in buildings],
-                    get_polygon="contour",
-                    get_elevation="height",
-                    elevation_scale=1,
-                    extruded=True,
-                    wireframe=True,
-                    get_fill_color=[74, 80, 87, 200],
-                    get_line_color=[255, 255, 255],
-                    line_width_min_pixels=1,
-                    pickable=True,
-                    opacity=0.8
-                )
-                self.deck.layers.append(building_layer)
+        # Add markers last (top layer)
+        marker_data = [{"coordinates": [lon, lat]} for lat, lon in list(self.markers.values())]
+        marker_layer = pdk.Layer(
+            "ScatterplotLayer",
+            marker_data,
+            get_position="coordinates",
+            get_fill_color=[18, 136, 232],
+            get_line_color=[255, 255, 255],
+            line_width_min_pixels=2,
+            get_radius=20,
+            radius_min_pixels=5,
+            radius_max_pixels=15,
+            pickable=True,
+            opacity=1.0,
+            stroked=True,
+            get_elevation=3000,  # Highest elevation
+            elevation_scale=1,
+            parameters={
+                "depthTest": False
+            }
+        )
+        self.deck.layers.append(marker_layer)
 
     async def update_map_display(self) -> None:
         try:
@@ -510,7 +968,7 @@ class MapVisual(QWidget):
             if hasattr(e, '__traceback__'):
                 import traceback
                 logging.error(traceback.format_exc())
-
+            
     @asyncClose
     async def closeEvent(self, event: QCloseEvent) -> None:
         """Handle cleanup when widget is closed"""
@@ -535,7 +993,7 @@ class MapVisual(QWidget):
         self.marker_count += 1
         marker_id = self.marker_count
         self.markers[marker_id] = (lat, lon)
-        await self.init_map()
+        asyncio.create_task(self._refresh_map())
 
     @asyncSlot()
     async def add_marker_and_center(self, lat: float, lon: float, zoom: Optional[float] = None) -> None:
@@ -546,7 +1004,7 @@ class MapVisual(QWidget):
         self.current_center = [lat, lon]
         if zoom is not None:
             self.current_zoom = zoom
-        await self.init_map()
+        asyncio.create_task(self._refresh_map())
 
     @asyncSlot()
     async def _delete_nearby_marker(self, lat: float, lon: float, threshold: float = MARKER_PROXIMITY_THRESHOLD) -> None:
@@ -632,7 +1090,7 @@ class MapVisual(QWidget):
                             distance = route_data["distance"]
                         else:
                             # Fallback to straight line if route fetch fails
-                            path_coords = [[start[1], start[0]], [end[1], end[0]]]
+                            path_coords = [start[1], start[0]], [end[1], end[0]]
                             distance = self._calculate_path_length(path_coords)
                         
                         # Calculate travel times
@@ -646,13 +1104,31 @@ class MapVisual(QWidget):
                             travel_times=travel_times
                         ))
                     
-                    await self.init_map()
+                    # Use create_task to avoid task conflicts
+                    asyncio.create_task(self._refresh_map())
                     status.set_text(f"Added {len(selected_markers) - 1} routes")
                 except Exception as e:
                     logging.error(f"Error creating routes: {e}")
                     status.set_text(f"Error creating routes: {str(e)}")
                 finally:
                     status.stop_loading(operation_id)
+
+    async def _refresh_map(self) -> None:
+        """Helper method to refresh the map safely"""
+        try:
+            await self.init_map()
+        except Exception as e:
+            logging.error(f"Error refreshing map: {e}")
+
+    def _show_places_dialog(self) -> None:
+        dialog = PlacesDialog(self.layer_toggles, self)
+        dialog.finished.connect(lambda: asyncio.create_task(self._refresh_map()))
+        dialog.exec()
+
+    @asyncSlot()
+    async def _handle_layer_toggle(self) -> None:
+        """Handle layer visibility toggle"""
+        asyncio.create_task(self._refresh_map())
 
     @asyncSlot()
     async def handle_search(self) -> None:
@@ -674,9 +1150,9 @@ class MapVisual(QWidget):
                     if -90 <= lat <= 90 and -180 <= lon <= 180:
                         status.set_text("Loading location data...")
                         await self.add_marker_and_center(lat, lon, zoom=13)
-                        self.search_box.clear()
-                        status.set_text(f"Found coordinates: {lat:.6f}, {lon:.6f}")
-                        return
+                    self.search_box.clear()
+                    status.set_text(f"Found coordinates: {lat:.6f}, {lon:.6f}")
+                    return
                 except ValueError:
                     pass
             
@@ -694,7 +1170,7 @@ class MapVisual(QWidget):
         except Exception as e:
             status.set_text(f"Error during search: {str(e)}")
         finally:
-            status.stop_loading(operation_id)
+            status.stop_loading(operation_id) 
 
     def show_context_menu(self, position: QPoint) -> None:
         # Get coordinates from the click position
