@@ -1,44 +1,312 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QMenu, QHBoxLayout, QLineEdit, QPushButton
+from typing import Dict, List, Tuple, Optional, Any, Callable
+from dataclasses import dataclass
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QMenu, QToolButton, QDialog, QListWidget, QListWidgetItem, QLabel
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtCore import QUrl, Slot, QPoint, Qt
-from PySide6.QtGui import QAction
-import folium
-from folium.plugins import Draw, MeasureControl, MousePosition
+from PySide6.QtCore import QUrl, Slot, Qt, QPoint
+from PySide6.QtGui import QAction, QCloseEvent
+import pydeck as pdk
 import tempfile
 import os
 import logging
 import json
-from folium.features import DivIcon
-from math import pi, cos
-import requests
+import aiohttp
+import asyncio
+from qasync import QEventLoop, asyncSlot, asyncClose
 from ui.managers.status_manager import StatusManager
+from math import sin, cos, radians
+
+# Constants
+EARTH_RADIUS_METERS = 6371000
+DEFAULT_BUILDING_HEIGHT = 10
+DEFAULT_ZOOM = 2
+DEFAULT_CENTER = [0, 0]
+MARKER_PROXIMITY_THRESHOLD = 0.001
+
+@dataclass
+class RouteData:
+    start: Tuple[float, float]
+    end: Tuple[float, float]
+    path: List[List[float]]
+    distance: float
+    travel_times: Dict[str, float]
+
+@dataclass
+class Building:
+    contour: List[List[float]]
+    height: float
+
+class MapStyles:
+    DIALOG = """
+        QDialog {
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+        QLabel {
+            color: #ffffff;
+        }
+        QListWidget {
+            background-color: #2d2d2d;
+            border: 1px solid #555555;
+            color: #ffffff;
+        }
+        QListWidget::item {
+            padding: 5px;
+        }
+        QListWidget::item:selected {
+            background-color: #3d3d3d;
+        }
+        QListWidget::item:hover {
+            background-color: #353535;
+        }
+        QPushButton {
+            background-color: #3d3d3d;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            color: #ffffff;
+            min-width: 80px;
+            height: 24px;
+        }
+        QPushButton:hover {
+            background-color: #4d4d4d;
+        }
+    """
+
+class LocationService:
+    @staticmethod
+    async def geocode(query: str) -> Optional[Dict[str, Any]]:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                'https://nominatim.openstreetmap.org/search',
+                params={'q': query, 'format': 'json', 'limit': 1},
+                headers={'User-Agent': 'PANO_APP'}
+            ) as response:
+                results = await response.json()
+                return results[0] if results else None
+
+class RouteService:
+    @staticmethod
+    async def get_route(start: Tuple[float, float], end: Tuple[float, float]) -> Optional[Dict[str, Any]]:
+        try:
+            url = f"http://router.project-osrm.org/route/v1/driving/{start[1]},{start[0]};{end[1]},{end[0]}"
+            params = {
+                "overview": "full",
+                "geometries": "geojson",
+                "steps": "false"
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    if data["code"] == "Ok" and data["routes"]:
+                        return {
+                            "coordinates": data["routes"][0]["geometry"]["coordinates"],
+                            "distance": data["routes"][0]["distance"]
+                        }
+            return None
+        except Exception as e:
+            logging.error(f"Error fetching route: {e}")
+            return None
+
+class BuildingService:
+    @staticmethod
+    async def fetch_buildings(lat: float, lon: float, radius: int = 500) -> List[Building]:
+        overpass_url = "https://overpass-api.de/api/interpreter"
+        query = f"""
+        [out:json][timeout:25];
+        (
+          way["building"](around:{radius},{lat},{lon});
+        );
+        out body geom;
+        """
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(overpass_url, data={"data": query}) as response:
+                    data = await response.json()
+                    buildings = []
+                    for element in data.get('elements', []):
+                        if 'geometry' in element:
+                            coords = [[p['lon'], p['lat']] for p in element['geometry']]
+                            if len(coords) >= 3:
+                                height = element.get('tags', {}).get('height', DEFAULT_BUILDING_HEIGHT)
+                                try:
+                                    height = float(height)
+                                except ValueError:
+                                    height = DEFAULT_BUILDING_HEIGHT
+                                
+                                buildings.append(Building(coords, height))
+                    return buildings
+        except Exception as e:
+            logging.error(f"Error fetching buildings: {e}")
+            return []
+
+class MarkerSelectorDialog(QDialog):
+    def __init__(self, markers: Dict[int, Tuple[float, float]], parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Connect Routes")
+        self.setModal(True)
+        self.setStyleSheet(MapStyles.DIALOG)
+        self._init_ui(markers)
+        self.resize(400, 300)
+    
+    def _init_ui(self, markers: Dict[int, Tuple[float, float]]) -> None:
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Select two or more markers to connect:"))
+        
+        self.marker_list = QListWidget()
+        self.marker_list.setSelectionMode(QListWidget.ExtendedSelection)
+        for marker_id, (lat, lon) in markers.items():
+            item = QListWidgetItem(f"Marker {marker_id} ({lat:.4f}, {lon:.4f})")
+            item.setData(Qt.UserRole, (lat, lon))
+            self.marker_list.addItem(item)
+        layout.addWidget(self.marker_list)
+        
+        button_layout = QHBoxLayout()
+        self.connect_button = QPushButton("Connect")
+        self.connect_button.clicked.connect(self.accept)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+        
+        button_layout.addWidget(self.connect_button)
+        button_layout.addWidget(self.cancel_button)
+        layout.addLayout(button_layout)
+    
+    def get_selected_markers(self) -> List[Tuple[float, float]]:
+        return [item.data(Qt.UserRole) for item in self.marker_list.selectedItems()]
 
 class MapVisual(QWidget):
-    # Average speeds in meters per second
+    # Transport speeds in meters per second
     TRANSPORT_SPEEDS = {
         'walking': 1.4,  # 5 km/h
         'car': 13.9,     # 50 km/h
         'bus': 8.3       # 30 km/h
     }
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
+        self.markers: Dict[int, Tuple[float, float]] = {}
+        self.marker_count: int = 0
+        self.current_zoom: float = DEFAULT_ZOOM
+        self.current_center: List[float] = DEFAULT_CENTER.copy()
+        self.last_click_coords: Optional[Tuple[float, float]] = None
+        self.routes: List[RouteData] = []
+        self._temp_file: Optional[str] = None
+        self.deck: Optional[pdk.Deck] = None
+        
+        self._init_ui()
+        
+        # Initialize map using QEventLoop
+        loop = asyncio.get_event_loop()
+        if loop and loop.is_running():
+            asyncio.create_task(self.init_map())
+        else:
+            loop = QEventLoop()
+            asyncio.set_event_loop(loop)
+            with loop:
+                loop.run_until_complete(self.init_map())
+
+    def _init_ui(self) -> None:
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         
-        # Add search bar layout
+        self._init_search_bar()
+        self._init_web_view()
+
+    def _init_search_bar(self) -> None:
         self.search_layout = QHBoxLayout()
+        self.search_layout.setSpacing(3)
+        
+        self._init_tools_button()
+        self._init_search_box()
+        
+        self.layout.addLayout(self.search_layout)
+
+    def _init_tools_button(self) -> None:
+        self.tools_button = QToolButton(self)
+        self.tools_button.setText("🛠")
+        self.tools_button.setPopupMode(QToolButton.InstantPopup)
+        self.tools_button.setStyleSheet("""
+            QToolButton {
+                background-color: #3d3d3d;
+                border: none;
+                border-radius: 4px;
+                padding: 5px;
+                color: #ffffff;
+                min-width: 24px;
+                height: 24px;
+            }
+            QToolButton:hover {
+                background-color: #4d4d4d;
+            }
+            QToolButton::menu-indicator {
+                image: none;
+            }
+        """)
+        
+        self.tools_menu = QMenu(self)
+        self.tools_menu.setStyleSheet("""
+            QMenu {
+                background-color: #2d2d2d;
+                border: 1px solid #555555;
+                color: #ffffff;
+                padding: 5px;
+            }
+            QMenu::item {
+                padding: 5px 25px;
+                border-radius: 3px;
+            }
+            QMenu::item:selected {
+                background-color: #3d3d3d;
+            }
+        """)
+        
+        self.route_connector_action = QAction("Connect Routes", self)
+        self.route_connector_action.triggered.connect(self.show_route_connector)
+        self.tools_menu.addAction(self.route_connector_action)
+        
+        self.tools_button.setMenu(self.tools_menu)
+        self.search_layout.addWidget(self.tools_button)
+
+    def _init_search_box(self) -> None:
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Enter location or coordinates...")
+        self.search_box.setStyleSheet("""
+            QLineEdit {
+                background-color: #3d3d3d;
+                border: 1px solid #555555;
+                border-radius: 4px;
+                padding: 5px;
+                color: #ffffff;
+                height: 24px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #777777;
+            }
+        """)
+        
         self.search_button = QPushButton("Search")
+        self.search_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3d3d3d;
+                border: none;
+                border-radius: 4px;
+                padding: 5px 10px;
+                color: #ffffff;
+                min-width: 68px;
+                height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #4d4d4d;
+            }
+        """)
+        
         self.search_button.clicked.connect(self.handle_search)
         self.search_box.returnPressed.connect(self.handle_search)
         
         self.search_layout.addWidget(self.search_box)
         self.search_layout.addWidget(self.search_button)
-        self.layout.addLayout(self.search_layout)
-        
-        # Create web view for the map
+
+    def _init_web_view(self) -> None:
         self.web_view = QWebEngineView()
         self.web_view.settings().setAttribute(
             self.web_view.settings().WebAttribute.JavascriptEnabled, True
@@ -46,373 +314,165 @@ class MapVisual(QWidget):
         self.web_view.settings().setAttribute(
             self.web_view.settings().WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
-        self.layout.addWidget(self.web_view)
-        
-        self._temp_file = None
-        self.markers = {}
-        self.marker_count = 0
-        
         self.web_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.web_view.customContextMenuRequested.connect(self.show_context_menu)
         
-        self.init_map()
+        # Add JavaScript to capture right-click coordinates
+        self.web_view.page().runJavaScript("""
+            document.addEventListener('contextmenu', function(e) {
+                const rect = e.target.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                window.lastClickCoords = {x, y};
+            });
+        """)
+        
+        self.layout.addWidget(self.web_view)
 
-    def calculate_travel_times(self, distance):
+    @staticmethod
+    def calculate_travel_times(distance: float) -> Dict[str, float]:
         """Calculate travel times for different modes of transport"""
-        return {mode: distance / speed for mode, speed in self.TRANSPORT_SPEEDS.items()}
+        return {mode: distance / speed for mode, speed in MapVisual.TRANSPORT_SPEEDS.items()}
 
-    def format_time(self, seconds):
+    @staticmethod
+    def format_time(seconds: float) -> str:
         """Format seconds into a human-readable time string"""
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
-        if hours > 0:
-            return f"{hours}h {minutes}m"
-        return f"{minutes}m"
+        return f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
 
-    def init_map(self):
-        # Create a folium map centered at (0, 0) with CartoDB dark matter tiles
-        self.folium_map = folium.Map(
-            location=[0, 0],
-            zoom_start=2,
-            tiles=None,  # Start with no base layer
-            control_scale=True,
-            prefer_canvas=True
+    def _create_circle_polygon(self, center_lat: float, center_lon: float, radius_meters: float = 500, num_points: int = 32) -> List[List[float]]:
+        """Create a circle polygon around a point with radius in meters"""
+        points = []
+        for i in range(num_points + 1):
+            angle = (i * 360 / num_points)
+            dx = radius_meters * cos(radians(angle))
+            dy = radius_meters * sin(radians(angle))
+            
+            # Convert meters to approximate degrees
+            lat_offset = dy / 111111  # 1 degree = ~111111 meters for latitude
+            lon_offset = dx / (111111 * cos(radians(center_lat)))  # Adjust for latitude
+            
+            lat = center_lat + lat_offset
+            lon = center_lon + lon_offset
+            points.append([lon, lat])  # Note: GeoJSON is [lon, lat]
+            
+        return points
+
+    def _calculate_path_length(self, path_coords: List[List[float]]) -> float:
+        """Calculate the total length of a path in meters"""
+        total_length = 0
+        for i in range(len(path_coords) - 1):
+            # Convert to lat/lon for calculation
+            start_lat = path_coords[i][1]
+            start_lon = path_coords[i][0]
+            end_lat = path_coords[i + 1][1]
+            end_lon = path_coords[i + 1][0]
+            
+            # Convert degrees to radians
+            lat1, lon1 = radians(start_lat), radians(start_lon)
+            lat2, lon2 = radians(end_lat), radians(end_lon)
+            
+            # Haversine formula
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+            c = 2 * EARTH_RADIUS_METERS * sin(radians(90) * (a ** 0.5))
+            
+            total_length += c
+        return total_length
+
+    async def init_map(self) -> None:
+        # Set up the deck.gl map with dark theme
+        self.deck = pdk.Deck(
+            map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+            initial_view_state=pdk.ViewState(
+                latitude=self.current_center[0],
+                longitude=self.current_center[1],
+                zoom=self.current_zoom,
+                pitch=45,
+                bearing=0
+            ),
+            layers=[]
         )
-        
-        # Add base layers with radio buttons
-        folium.TileLayer(
-            tiles='http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            attr='© OpenStreetMap contributors',
-            name='OpenStreetMap',
-            control=True,
-            overlay=False
-        ).add_to(self.folium_map)
 
-        folium.TileLayer(
-            tiles='http://tile.memomaps.de/tilegen/{z}/{x}/{y}.png',
-            attr='© MeMoMaps contributors',
-            name='Transport Map',
-            control=True,
-            overlay=False
-        ).add_to(self.folium_map)
+        if self.markers:
+            await self._add_map_layers()
+        await self.update_map_display()
 
-        folium.TileLayer(
-            tiles='CartoDB dark_matter',
-            name='Dark Mode',
-            control=True,
-            overlay=False
-        ).add_to(self.folium_map)
+    async def _add_map_layers(self) -> None:
+        if not self.deck:
+            return
 
-        # Add layer control with exclusive layers (radio buttons)
-        folium.LayerControl(position='topright', collapsed=True).add_to(self.folium_map)
-        
-        # Add custom draw with travel time calculations
-        draw = Draw(
-            position='topleft',
-            draw_options={
-                'polyline': {
-                    'metric': True,
-                    'showLength': True,
-                    'shapeOptions': {
-                        'color': '#1288e8'
-                    }
-                },
-                'rectangle': True,  # Re-enable rectangle
-                'polygon': True,    # Re-enable polygon
-                'circle': {
-                    'metric': True,
-                    'showRadius': True,
-                    'shapeOptions': {
-                        'color': '#1288e8'
-                    }
-                },
-                'marker': True,
-                'circlemarker': False,
-                'polygon': {
-                    'metric': True,
-                    'showArea': True,
-                    'shapeOptions': {
-                        'color': '#1288e8',
-                        'fillColor': '#1288e8',
-                        'fillOpacity': 0.2
-                    }
-                },
-                'rectangle': {
-                    'metric': True,
-                    'showArea': True,
-                    'shapeOptions': {
-                        'color': '#1288e8',
-                        'fillColor': '#1288e8',
-                        'fillOpacity': 0.2
-                    }
+        # Add markers
+        marker_data = [{"coordinates": [lon, lat]} for lat, lon in self.markers.values()]
+        marker_layer = pdk.Layer(
+            "ScatterplotLayer",
+            data=marker_data,
+            get_position="coordinates",
+            get_fill_color=[18, 136, 232],
+            get_line_color=[255, 255, 255],
+            line_width_min_pixels=1,
+            get_radius=20,
+            radius_min_pixels=3,
+            radius_max_pixels=10,
+            pickable=True,
+            opacity=0.8,
+            stroked=True
+        )
+        self.deck.layers.append(marker_layer)
+
+        # Add routes if any exist
+        if self.routes:
+            route_data = []
+            for route in self.routes:
+                route_data.append({
+                    "path": route.path,
+                    "distance": f"{route.distance/1000:.2f} km",
+                    "walking": f"🚶 {self.format_time(route.travel_times['walking'])}",
+                    "driving": f"🚗 {self.format_time(route.travel_times['car'])}",
+                    "bus": f"🚌 {self.format_time(route.travel_times['bus'])}"
+                })
+            
+            route_layer = pdk.Layer(
+                "PathLayer",
+                data=route_data,
+                get_path="path",
+                get_width=5,
+                get_color=[255, 140, 0],
+                width_scale=1,
+                width_min_pixels=2,
+                pickable=True,
+                opacity=0.8,
+                tooltip={
+                    "text": "Distance: {distance}\n{walking}\n{driving}\n{bus}"
                 }
-            },
-            edit_options={
-                'featureGroup': None,  # Required for edit to work
-                'edit': True,
-                'remove': True
-            }
-        )
-        draw.add_to(self.folium_map)
-        
-        # Add measurement control
-        measure = MeasureControl(
-            position='topleft',
-            primary_length_unit='meters',
-            secondary_length_unit='kilometers',
-            primary_area_unit='sqmeters',
-            secondary_area_unit='hectares'
-        )
-        measure.add_to(self.folium_map)
-        
-        # Add mouse position display
-        MousePosition().add_to(self.folium_map)
-        
-        # Add JavaScript for travel time calculations
-        self.folium_map.get_root().script.add_child(folium.Element("""
-            // Wait for the map to be ready
-            document.addEventListener('DOMContentLoaded', function() {
-                // Get the map container
-                var mapContainer = document.querySelector('#map');
-                if (!mapContainer) return;
-                
-                // Wait for Leaflet to be initialized
-                var waitForMap = setInterval(function() {
-                    // Find the Leaflet map instance
-                    var maps = Object.values(window).filter(function(value) {
-                        return value && value._leaflet_id && value instanceof L.Map;
-                    });
-                    
-                    if (maps.length > 0) {
-                        clearInterval(waitForMap);
-                        var map = maps[0];
-                        
-                        // Initialize FeatureGroup for drawn items
-                        var drawnItems = new L.FeatureGroup();
-                        map.addLayer(drawnItems);
-                        
-                        // Configure draw control
-                        var drawControl = document.querySelector('.leaflet-draw');
-                        if (drawControl) {
-                            drawControl.style.display = 'block';
-                        }
-                        
-                        // Handle right-click events
-                        map.on('contextmenu', function(e) {
-                            window.lastRightClick = {
-                                lat: e.latlng.lat,
-                                lng: e.latlng.lng
-                            };
-                            // Prevent default context menu
-                            e.originalEvent.preventDefault();
-                        });
-                        
-                        // Format time helper function
-                        function formatTime(seconds) {
-                            var hours = Math.floor(seconds / 3600);
-                            var minutes = Math.floor((seconds % 3600) / 60);
-                            return hours > 0 ? hours + 'h ' + minutes + 'm' : minutes + 'm';
-                        }
-                        
-                        // Handle draw events
-                        map.on('draw:created', function(e) {
-                            var layer = e.layer;
-                            drawnItems.addLayer(layer);
-                            
-                            if (e.layerType === 'circle') {
-                                var radius = layer.getRadius();
-                                
-                                // Calculate travel times
-                                var walkTime = radius / 1.4;
-                                var carTime = radius / 13.9;
-                                var busTime = radius / 8.3;
-                                
-                                var popupContent = 
-                                    '<div class="travel-times">' +
-                                    '<strong>Radius:</strong> ' + (radius/1000).toFixed(2) + ' km<br>' +
-                                    '<strong>Travel times:</strong><br>' +
-                                    '🚶 Walking: ' + formatTime(walkTime) + '<br>' +
-                                    '🚗 Car: ' + formatTime(carTime) + '<br>' +
-                                    '🚌 Bus: ' + formatTime(busTime) +
-                                    '</div>';
-                                
-                                layer.bindPopup(popupContent).openPopup();
-                            }
-                            else if (e.layerType === 'polyline') {
-                                var distance = 0;
-                                var latlngs = layer.getLatLngs();
-                                
-                                for (var i = 0; i < latlngs.length - 1; i++) {
-                                    distance += latlngs[i].distanceTo(latlngs[i + 1]);
-                                }
-                                
-                                // Calculate travel times
-                                var walkTime = distance / 1.4;
-                                var carTime = distance / 13.9;
-                                var busTime = distance / 8.3;
-                                
-                                var popupContent = 
-                                    '<div class="travel-times">' +
-                                    '<strong>Distance:</strong> ' + (distance/1000).toFixed(2) + ' km<br>' +
-                                    '<strong>Travel times:</strong><br>' +
-                                    '🚶 Walking: ' + formatTime(walkTime) + '<br>' +
-                                    '🚗 Car: ' + formatTime(carTime) + '<br>' +
-                                    '🚌 Bus: ' + formatTime(busTime) +
-                                    '</div>';
-                                
-                                layer.bindPopup(popupContent).openPopup();
-                            }
-                            else if (e.layerType === 'marker') {
-                                var latlng = layer.getLatLng();
-                                layer.bindPopup('Marker at: ' + latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6)).openPopup();
-                            }
-                        });
-                        
-                        // Handle edit events
-                        map.on('draw:edited', function(e) {
-                            var layers = e.layers;
-                            layers.eachLayer(function(layer) {
-                                if (layer instanceof L.Circle) {
-                                    // Recalculate circle popup
-                                    var radius = layer.getRadius();
-                                    var walkTime = radius / 1.4;
-                                    var carTime = radius / 13.9;
-                                    var busTime = radius / 8.3;
-                                    
-                                    var popupContent = 
-                                        '<div class="travel-times">' +
-                                        '<strong>Radius:</strong> ' + (radius/1000).toFixed(2) + ' km<br>' +
-                                        '<strong>Travel times:</strong><br>' +
-                                        '🚶 Walking: ' + formatTime(walkTime) + '<br>' +
-                                        '🚗 Car: ' + formatTime(carTime) + '<br>' +
-                                        '🚌 Bus: ' + formatTime(busTime) +
-                                        '</div>';
-                                    
-                                    layer.setPopupContent(popupContent);
-                                }
-                                else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-                                    // Recalculate polyline popup
-                                    var distance = 0;
-                                    var latlngs = layer.getLatLngs();
-                                    
-                                    for (var i = 0; i < latlngs.length - 1; i++) {
-                                        distance += latlngs[i].distanceTo(latlngs[i + 1]);
-                                    }
-                                    
-                                    var walkTime = distance / 1.4;
-                                    var carTime = distance / 13.9;
-                                    var busTime = distance / 8.3;
-                                    
-                                    var popupContent = 
-                                        '<div class="travel-times">' +
-                                        '<strong>Distance:</strong> ' + (distance/1000).toFixed(2) + ' km<br>' +
-                                        '<strong>Travel times:</strong><br>' +
-                                        '🚶 Walking: ' + formatTime(walkTime) + '<br>' +
-                                        '🚗 Car: ' + formatTime(carTime) + '<br>' +
-                                        '🚌 Bus: ' + formatTime(busTime) +
-                                        '</div>';
-                                    
-                                    layer.setPopupContent(popupContent);
-                                }
-                            });
-                        });
-                    }
-                }, 100);
-            });
-        """))
-        
-        # Save map to temporary file and display it
-        self.update_map_display()
-        
-    def show_context_menu(self, position: QPoint):
-        js_code = """
-        (function() {
-            if (window.lastRightClick) {
-                return [window.lastRightClick.lat, window.lastRightClick.lng];
-            }
-            return null;
-        })();
-        """
-        self.web_view.page().runJavaScript(js_code, self._handle_context_menu_creation(position))
-    
-    def _handle_context_menu_creation(self, position: QPoint):
-        @Slot()
-        def callback(coords):
-            if not coords:
-                return
-                
-            menu = QMenu(self)
-            
-            # Copy coordinates action
-            copy_coords = QAction("Copy Coordinates", self)
-            copy_coords.triggered.connect(lambda: self._copy_coordinates(coords))
-            menu.addAction(copy_coords)
-            
-            # Add marker action
-            add_marker = QAction("Add Marker", self)
-            add_marker.triggered.connect(lambda: self.add_marker(coords[0], coords[1]))
-            menu.addAction(add_marker)
-            
-            # Delete marker action (only show if there's a marker near the click)
-            if self._is_marker_nearby(coords[0], coords[1]):
-                delete_marker = QAction("Delete Marker", self)
-                delete_marker.triggered.connect(lambda: self._delete_nearby_marker(coords[0], coords[1]))
-                menu.addAction(delete_marker)
-            
-            menu.exec(self.web_view.mapToGlobal(position))
-            
-        return callback
-        
-    def _copy_coordinates(self, coords):
-        from PySide6.QtWidgets import QApplication
-        text = f"{coords[0]:.6f}, {coords[1]:.6f}"
-        QApplication.clipboard().setText(text)
-    
-    def _is_marker_nearby(self, lat, lon, threshold=0.001):
-        for marker_id, marker_coords in self.markers.items():
-            if (abs(marker_coords[0] - lat) < threshold and 
-                abs(marker_coords[1] - lon) < threshold):
-                return True
-        return False
-    
-    def _delete_nearby_marker(self, lat, lon, threshold=0.001):
-        """Delete any marker near the given coordinates"""
-        for marker_id, marker_coords in list(self.markers.items()):
-            if (abs(marker_coords[0] - lat) < threshold and 
-                abs(marker_coords[1] - lon) < threshold):
-                self.markers.pop(marker_id)
-                # Recreate the map to remove the marker
-                self.init_map()
-                # Re-add all remaining markers
-                for mid, (mlat, mlon) in self.markers.items():
-                    folium.Marker(
-                        [mlat, mlon],
-                        popup=f"Marker {mid}"
-                    ).add_to(self.folium_map)
-                self.update_map_display()
-                break
-    
-    def add_marker(self, lat, lon, popup=None):
-        """Add a marker to the map"""
-        # Remove any existing marker at this location first
-        self._delete_nearby_marker(lat, lon)
-        
-        self.marker_count += 1
-        marker_id = self.marker_count
-        self.markers[marker_id] = (lat, lon)
-        
-        if popup is None:
-            popup = f"Marker {marker_id}"
-            
-        folium.Marker(
-            [lat, lon],
-            popup=popup
-        ).add_to(self.folium_map)
-        self.update_map_display()
-        
-    def update_map_display(self):
+            )
+            self.deck.layers.append(route_layer)
+
+        # Add 3D buildings around each marker
+        for lat, lon in self.markers.values():
+            buildings = await BuildingService.fetch_buildings(lat, lon)
+            if buildings:
+                building_layer = pdk.Layer(
+                    "PolygonLayer",
+                    data=[{"contour": b.contour, "height": b.height} for b in buildings],
+                    get_polygon="contour",
+                    get_elevation="height",
+                    elevation_scale=1,
+                    extruded=True,
+                    wireframe=True,
+                    get_fill_color=[74, 80, 87, 200],
+                    get_line_color=[255, 255, 255],
+                    line_width_min_pixels=1,
+                    pickable=True,
+                    opacity=0.8
+                )
+                self.deck.layers.append(building_layer)
+
+    async def update_map_display(self) -> None:
         try:
-            # Clean up previous temporary file if it exists
+            # Clean up previous temporary file
             if self._temp_file and os.path.exists(self._temp_file):
                 try:
                     os.unlink(self._temp_file)
@@ -422,44 +482,24 @@ class MapVisual(QWidget):
             # Create new temporary file
             with tempfile.NamedTemporaryFile(mode='w+', suffix='.html', delete=False) as temp_file:
                 self._temp_file = temp_file.name
-                # Save with all elements inline
-                self.folium_map.save(temp_file.name, close_file=False)
                 
-                # Read the content
-                temp_file.seek(0)
-                content = temp_file.read()
+                if not self.deck:
+                    logging.error("Deck.gl instance not initialized")
+                    return
+                    
+                html_content = self.deck.to_html(as_string=True)
                 
-                # Find where the map is initialized
-                map_init_index = content.find('var map = L.map(')
-                if map_init_index != -1:
-                    # Add right-click handling right after map initialization
-                    right_click_js = """
-                    map.on('contextmenu', function(e) {
-                        window.lastRightClick = {
-                            lat: e.latlng.lat,
-                            lng: e.latlng.lng
-                        };
-                    });
-                    """
-                    # Find the semicolon after map initialization
-                    semicolon_index = content.find(';', map_init_index)
-                    if semicolon_index != -1:
-                        content = content[:semicolon_index + 1] + right_click_js + content[semicolon_index + 1:]
+                if html_content is None:
+                    logging.error("Failed to generate deck.gl HTML content")
+                    return
                 
-                # Add map container div
-                content = content.replace(
-                    '<body>',
-                    '<body><div id="map" style="height:100%;width:100%;">'
-                )
-                content = content.replace('</body>', '</div></body>')
+                # Add required CSS for Mapbox GL
+                css_link = '<link href="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css" rel="stylesheet">'
+                html_content = html_content.replace('</head>', f'{css_link}</head>')
                 
-                # Write back the modified content
-                temp_file.seek(0)
-                temp_file.truncate()
-                temp_file.write(content)
+                temp_file.write(html_content)
                 temp_file.flush()
             
-            # Ensure file exists before loading
             if os.path.exists(self._temp_file):
                 self.web_view.setUrl(QUrl.fromLocalFile(self._temp_file))
             else:
@@ -467,23 +507,155 @@ class MapVisual(QWidget):
                 
         except Exception as e:
             logging.error(f"Error updating map display: {e}")
-            
-    def __del__(self):
-        # Cleanup temporary file when object is destroyed
+            if hasattr(e, '__traceback__'):
+                import traceback
+                logging.error(traceback.format_exc())
+
+    @asyncClose
+    async def closeEvent(self, event: QCloseEvent) -> None:
+        """Handle cleanup when widget is closed"""
         if self._temp_file and os.path.exists(self._temp_file):
             try:
                 os.unlink(self._temp_file)
             except Exception as e:
-                logging.warning(f"Failed to cleanup temporary file during destruction: {e}")
-                
-    def set_center(self, lat, lon, zoom=None):
-        """Set the map center and optionally zoom level"""
-        self.folium_map.location = [lat, lon]
-        if zoom is not None:
-            self.folium_map.zoom_start = zoom
-        self.update_map_display()
+                logging.warning(f"Failed to cleanup temporary file during close: {e}")
+        event.accept()
 
-    def handle_search(self):
+    @asyncSlot()
+    async def set_center(self, lat: float, lon: float, zoom: Optional[float] = None) -> None:
+        """Set the map center and optionally zoom level"""
+        self.current_center = [lat, lon]
+        if zoom is not None:
+            self.current_zoom = zoom
+        await self.init_map()
+
+    @asyncSlot()
+    async def add_marker(self, lat: float, lon: float, popup: Optional[str] = None) -> None:
+        """Add a marker to the map"""
+        self.marker_count += 1
+        marker_id = self.marker_count
+        self.markers[marker_id] = (lat, lon)
+        await self.init_map()
+
+    @asyncSlot()
+    async def add_marker_and_center(self, lat: float, lon: float, zoom: Optional[float] = None) -> None:
+        """Add a marker and center the map in a single operation"""
+        self.marker_count += 1
+        marker_id = self.marker_count
+        self.markers[marker_id] = (lat, lon)
+        self.current_center = [lat, lon]
+        if zoom is not None:
+            self.current_zoom = zoom
+        await self.init_map()
+
+    @asyncSlot()
+    async def _delete_nearby_marker(self, lat: float, lon: float, threshold: float = MARKER_PROXIMITY_THRESHOLD) -> None:
+        """Delete any marker near the given coordinates"""
+        for marker_id, marker_coords in list(self.markers.items()):
+            if (abs(marker_coords[0] - lat) < threshold and 
+                abs(marker_coords[1] - lon) < threshold):
+                self.markers.pop(marker_id)
+                await self.init_map()
+                break
+
+    def _handle_context_menu_creation(self, position: QPoint) -> Callable[[Optional[List[float]]], None]:
+        @Slot(object)
+        def callback(coords: Optional[List[float]]) -> None:
+            if not coords:
+                return
+                
+            menu = QMenu(self)
+            
+            copy_coords = QAction("Copy Coordinates", self)
+            copy_coords.triggered.connect(lambda: self._copy_coordinates(coords))
+            menu.addAction(copy_coords)
+            
+            add_marker = QAction("Add Marker", self)
+            add_marker.triggered.connect(lambda: self._handle_add_marker(coords[0], coords[1]))
+            menu.addAction(add_marker)
+            
+            if self._is_marker_nearby(coords[0], coords[1]):
+                delete_marker = QAction("Delete Marker", self)
+                delete_marker.triggered.connect(lambda: self._handle_delete_marker(coords[0], coords[1]))
+                menu.addAction(delete_marker)
+            
+            menu.exec(self.web_view.mapToGlobal(position))
+            
+        return callback
+        
+    def _handle_add_marker(self, lat: float, lon: float) -> None:
+        """Helper method to handle add marker action"""
+        asyncio.get_event_loop().create_task(self.add_marker(lat, lon))
+
+    def _handle_delete_marker(self, lat: float, lon: float) -> None:
+        """Helper method to handle delete marker action"""
+        asyncio.get_event_loop().create_task(self._delete_nearby_marker(lat, lon))
+        
+    def _copy_coordinates(self, coords: List[float]) -> None:
+        from PySide6.QtWidgets import QApplication
+        text = f"{coords[0]:.6f}, {coords[1]:.6f}"
+        QApplication.clipboard().setText(text)
+    
+    def _is_marker_nearby(self, lat: float, lon: float, threshold: float = MARKER_PROXIMITY_THRESHOLD) -> bool:
+        for marker_id, marker_coords in self.markers.items():
+            if (abs(marker_coords[0] - lat) < threshold and 
+                abs(marker_coords[1] - lon) < threshold):
+                return True
+        return False
+    
+    @asyncSlot()
+    async def show_route_connector(self) -> None:
+        """Show the route connector dialog"""
+        if len(self.markers) < 2:
+            status = StatusManager.get()
+            status.set_text("Need at least 2 markers to connect routes")
+            return
+            
+        dialog = MarkerSelectorDialog(self.markers, self)
+        if dialog.exec() == QDialog.Accepted:
+            selected_markers = dialog.get_selected_markers()
+            if len(selected_markers) >= 2:
+                status = StatusManager.get()
+                operation_id = status.start_loading("Fetching Routes")
+                
+                try:
+                    # Create routes between consecutive markers
+                    for i in range(len(selected_markers) - 1):
+                        start = selected_markers[i]
+                        end = selected_markers[i + 1]
+                        
+                        status.set_text(f"Fetching route {i+1} of {len(selected_markers)-1}...")
+                        route_data = await RouteService.get_route(start, end)
+                        
+                        if route_data:
+                            path_coords = route_data["coordinates"]
+                            distance = route_data["distance"]
+                        else:
+                            # Fallback to straight line if route fetch fails
+                            path_coords = [[start[1], start[0]], [end[1], end[0]]]
+                            distance = self._calculate_path_length(path_coords)
+                        
+                        # Calculate travel times
+                        travel_times = self.calculate_travel_times(distance)
+                        
+                        self.routes.append(RouteData(
+                            start=start,
+                            end=end,
+                            path=path_coords,
+                            distance=distance,
+                            travel_times=travel_times
+                        ))
+                    
+                    await self.init_map()
+                    status.set_text(f"Added {len(selected_markers) - 1} routes")
+                except Exception as e:
+                    logging.error(f"Error creating routes: {e}")
+                    status.set_text(f"Error creating routes: {str(e)}")
+                finally:
+                    status.stop_loading(operation_id)
+
+    @asyncSlot()
+    async def handle_search(self) -> None:
         query = self.search_box.text().strip()
         if not query:
             return
@@ -496,36 +668,25 @@ class MapVisual(QWidget):
             # Try to parse as "lat, lon"
             parts = query.split(',')
             if len(parts) == 2:
-                lat = float(parts[0].strip())
-                lon = float(parts[1].strip())
-                if -90 <= lat <= 90 and -180 <= lon <= 180:
-                    self.set_center(lat, lon, zoom=13)
-                    self.search_box.clear()
-                    status.set_text(f"Found coordinates: {lat:.6f}, {lon:.6f}")
-                    return
-        except ValueError:
-            pass
+                try:
+                    lat = float(parts[0].strip())
+                    lon = float(parts[1].strip())
+                    if -90 <= lat <= 90 and -180 <= lon <= 180:
+                        status.set_text("Loading location data...")
+                        await self.add_marker_and_center(lat, lon, zoom=13)
+                        self.search_box.clear()
+                        status.set_text(f"Found coordinates: {lat:.6f}, {lon:.6f}")
+                        return
+                except ValueError:
+                    pass
             
-        # If not coordinates, use Nominatim geocoding
-        try:
-            response = requests.get(
-                'https://nominatim.openstreetmap.org/search',
-                params={
-                    'q': query,
-                    'format': 'json',
-                    'limit': 1
-                },
-                headers={'User-Agent': 'PANO_APP'}
-            )
-            results = response.json()
-            
-            if results:
-                location = results[0]
+            # If not coordinates, use geocoding service
+            location = await LocationService.geocode(query)
+            if location:
                 lat = float(location['lat'])
                 lon = float(location['lon'])
-                self.set_center(lat, lon, zoom=13)
-                # Add a temporary marker
-                self.add_marker(lat, lon, popup=location.get('display_name', query))
+                status.set_text("Loading location data...")
+                await self.add_marker_and_center(lat, lon, zoom=13)
                 self.search_box.clear()
                 status.set_text(f"Found location: {location.get('display_name', query)}")
             else:
@@ -533,4 +694,25 @@ class MapVisual(QWidget):
         except Exception as e:
             status.set_text(f"Error during search: {str(e)}")
         finally:
-            status.stop_loading(operation_id) 
+            status.stop_loading(operation_id)
+
+    def show_context_menu(self, position: QPoint) -> None:
+        # Get coordinates from the click position
+        js_code = """
+        (function() {
+            const map = document.querySelector('canvas').parentElement;
+            if (!map || !map._deck) return null;
+            
+            const viewport = map._deck.getViewports()[0];
+            if (!viewport) return null;
+            
+            const rect = map.getBoundingClientRect();
+            const x = window.lastClickCoords ? window.lastClickCoords.x : 0;
+            const y = window.lastClickCoords ? window.lastClickCoords.y : 0;
+            
+            const lngLat = viewport.unproject([x, y]);
+            return [lngLat[1], lngLat[0]];  // [lat, lon]
+        })();
+        """
+        
+        self.web_view.page().runJavaScript(js_code, self._handle_context_menu_creation(position)) 

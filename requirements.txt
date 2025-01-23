@@ -12,3 +12,4 @@ ghunt
 googletrans
 markdown2
 g4f
+pydeck

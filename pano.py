@@ -72,7 +72,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "7.6.6"
+        self.version = "7.7.7"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -188,6 +188,7 @@ class MainWindow(QMainWindow):
         """Setup the status bar"""
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
+        self.status_bar.setFixedHeight(25)
         
         # Initialize global status manager
         StatusManager.initialize(self.status_bar)
@@ -737,7 +738,7 @@ def main():
     try:
         app = QApplication(sys.argv)
         
-        # Create async event loop
+        # Create and configure event loop
         loop = QEventLoop(app)
         asyncio.set_event_loop(loop)
         
@@ -747,7 +748,7 @@ def main():
         
         # Run event loop
         with loop:
-            sys.exit(loop.run_forever())
+            loop.run_forever()
             
     except Exception as e:
         logger.critical(f"Application failed to start: {str(e)}", exc_info=True)
