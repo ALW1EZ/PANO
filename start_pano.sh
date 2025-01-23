@@ -1,48 +1,69 @@
 #!/bin/bash
 
-# Colors for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+echo "Checking PANO version..."
 
-echo -e "${BLUE}Starting PANO setup...${NC}"
-
-# Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-    echo -e "${BLUE}Creating virtual environment...${NC}"
-    python3 -m venv venv
+# Check if git is installed
+if ! command -v git &> /dev/null; then
+    echo "Git is not installed. Please install git first."
+    exit 1
 fi
 
-# Activate virtual environment
-echo -e "${BLUE}Activating virtual environment...${NC}"
-source venv/bin/activate
+# Check if we're in a git repository
+if ! git rev-parse --is-inside-work-tree &> /dev/null; then
+    echo "Not in a git repository. Please clone PANO properly."
+    exit 1
+fi
 
-# Install requirements if requirements.txt exists
-if [ -f "requirements.txt" ]; then
-    echo -e "${BLUE}Installing/updating dependencies...${NC}"
+# Make sure we're on main branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    echo "Switching to main branch..."
+    git checkout main
+    if [ $? -ne 0 ]; then
+        echo "Failed to switch to main branch. Please check your git status."
+        exit 1
+    fi
+fi
+
+# Fetch the latest changes without merging
+git fetch origin main
+
+# Get current and latest versions
+CURRENT_VERSION=$(git rev-parse HEAD)
+LATEST_VERSION=$(git rev-parse origin/main)
+
+if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+    echo "Your PANO version is outdated."
+    echo "Current version: ${CURRENT_VERSION:0:7}"
+    echo "Latest version: ${LATEST_VERSION:0:7}"
+    read -p "Would you like to update? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Updating PANO..."
+        git pull origin main
+        if [ $? -ne 0 ]; then
+            echo "Update failed. Please resolve any conflicts and try again."
+            exit 1
+        fi
+        echo "Update successful!"
+    else
+        echo "Continuing with current version..."
+    fi
+else
+    echo "PANO is up to date."
+fi
+
+# Check if virtual environment exists
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv venv
+    source venv/bin/activate
+    echo "Installing dependencies..."
     pip install -r requirements.txt
 else
-    echo -e "${BLUE}Installing required packages...${NC}"
-    pip install PySide6 \
-    networkx \
-    qasync \
-    scipy \
-    folium \
-    aiofiles \
-    requests \
-    bs4 \
-    googlesearch-python \
-    geopy \
-    ghunt \
-    googletrans \
-    markdown2 \
-    g4f
+    source venv/bin/activate
 fi
 
-# Always update g4f to latest version
-pip uninstall -y g4f
-pip install --no-cache-dir g4f
-
 # Start PANO
-echo -e "${GREEN}Starting PANO...${NC}"
-python pano.py 
+echo "Starting PANO..."
+python3 pano.py 

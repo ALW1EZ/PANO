@@ -1,60 +1,74 @@
 @echo off
-setlocal EnableDelayedExpansion
+echo Checking PANO version...
 
-:: Colors for output
-set "BLUE=[94m"
-set "GREEN=[92m"
-set "NC=[0m"
-
-:: Check if Python is installed
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo Python is not installed or not in PATH
-    echo Please install Python 3.x from https://www.python.org/downloads/
+REM Check if git is installed
+where git >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo Git is not installed. Please install git first.
     pause
     exit /b 1
 )
 
-echo %BLUE%Starting PANO setup...%NC%
-
-:: Create virtual environment if it doesn't exist
-if not exist "venv" (
-    echo %BLUE%Creating virtual environment...%NC%
-    python -m venv venv
+REM Check if we're in a git repository
+git rev-parse --is-inside-work-tree >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo Not in a git repository. Please clone PANO properly.
+    pause
+    exit /b 1
 )
 
-:: Activate virtual environment
-echo %BLUE%Activating virtual environment...%NC%
-call venv\Scripts\activate.bat
+REM Make sure we're on main branch
+for /f "tokens=*" %%a in ('git rev-parse --abbrev-ref HEAD') do set CURRENT_BRANCH=%%a
+if not "%CURRENT_BRANCH%" == "main" (
+    echo Switching to main branch...
+    git checkout main
+    if %ERRORLEVEL% NEQ 0 (
+        echo Failed to switch to main branch. Please check your git status.
+        pause
+        exit /b 1
+    )
+)
 
-:: Install requirements if requirements.txt exists
-if exist "requirements.txt" (
-    echo %BLUE%Installing/updating dependencies...%NC%
+REM Fetch the latest changes without merging
+git fetch origin main
+
+REM Get current and latest versions
+for /f "tokens=*" %%a in ('git rev-parse HEAD') do set CURRENT_VERSION=%%a
+for /f "tokens=*" %%a in ('git rev-parse origin/main') do set LATEST_VERSION=%%a
+
+if not "%CURRENT_VERSION%" == "%LATEST_VERSION%" (
+    echo Your PANO version is outdated.
+    echo Current version: %CURRENT_VERSION:~0,7%
+    echo Latest version: %LATEST_VERSION:~0,7%
+    set /p UPDATE="Would you like to update? [y/N] "
+    if /i "%UPDATE%" == "y" (
+        echo Updating PANO...
+        git pull origin main
+        if %ERRORLEVEL% NEQ 0 (
+            echo Update failed. Please resolve any conflicts and try again.
+            pause
+            exit /b 1
+        )
+        echo Update successful!
+    ) else (
+        echo Continuing with current version...
+    )
+) else (
+    echo PANO is up to date.
+)
+
+REM Check if virtual environment exists
+if not exist venv (
+    echo Creating virtual environment...
+    python -m venv venv
+    call venv\Scripts\activate
+    echo Installing dependencies...
     pip install -r requirements.txt
 ) else (
-    echo %BLUE%Installing required packages...%NC%
-    pip install PySide6 ^
-    networkx ^
-    qasync ^
-    scipy ^
-    folium ^
-    aiofiles ^
-    requests ^
-    bs4 ^
-    googlesearch-python ^
-    geopy ^
-    ghunt ^
-    googletrans ^
-    markdown2 ^
-    g4f
+    call venv\Scripts\activate
 )
 
-:: Always update g4f to latest version
-pip uninstall -y g4f
-pip install --no-cache-dir g4f
-
-:: Start PANO
-echo %GREEN%Starting PANO...%NC%
+REM Start PANO
+echo Starting PANO...
 python pano.py
-
 pause 

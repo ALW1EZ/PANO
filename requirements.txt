@@ -2,7 +2,6 @@ PySide6
 networkx
 qasync
 scipy
-folium
 aiofiles
 requests
 bs4
