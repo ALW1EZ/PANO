@@ -1,8 +1,23 @@
 # PANO - Platform for Analysis and Network Operations
 
-PANO is a powerful investigation and analysis platform designed for open-source intelligence (OSINT) and temporal analysis. It provides a comprehensive suite of tools for data collection, visualization, and analysis.
+<div align="center">
 
-## Getting Started
+![PANO Logo](ui/LOGO.png)
+
+[![License: CC BY-NC](https://img.shields.io/badge/License-CC%20BY--NC-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![PySide6](https://img.shields.io/badge/GUI-PySide6-brightgreen.svg)](https://wiki.qt.io/Qt_for_Python)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-orange.svg)](https://github.com/ALW1EZ/PANO/)
+
+**PANO** is a powerful OSINT investigation platform that combines graph visualization, timeline analysis, and AI-powered tools to help you uncover hidden connections and patterns in your data.
+
+[Getting Started](#getting-started) • [Features](#features) • [Documentation](#development-guide) • [Contributing](#contributing)
+
+---
+
+</div>
+
+## 🚀 Getting Started
 
 1. Clone the repository:
    ```bash
@@ -14,17 +29,23 @@ PANO is a powerful investigation and analysis platform designed for open-source 
    - Linux: `./start_pano.sh`
    - Windows: `start_pano.bat`
 
-## Usage
+The startup script will automatically:
+- Check for updates
+- Set up the Python environment
+- Install dependencies
+- Launch PANO
 
-1. Create a new investigation or load an existing one
-2. Add entities by dragging them from the entity list
-3. Use transforms to discover relationships and gather information
-4. Analyze data using the timeline and map views
-5. Save your investigation for later use
+## 💡 Quick Start Guide
 
-## Features
+1. **Create Investigation**: Start a new investigation or load an existing one
+2. **Add Entities**: Drag entities from the sidebar onto the graph
+3. **Discover Connections**: Use transforms to automatically find relationships
+4. **Analyze**: Use timeline and map views to understand patterns
+5. **Save**: Export your investigation for later use
 
-### Core Functionality
+## 🔍 Features
+
+### 🕸️ Core Functionality
 
 - **Interactive Graph Visualization**
   - Drag-and-drop entity creation
@@ -44,32 +65,25 @@ PANO is a powerful investigation and analysis platform designed for open-source 
   - Interactive mapping features
   - Coordinate plotting and tracking
 
-### Entity Management
+### 🎯 Entity Management
 
 - **Supported Entity Types**
-  - Email addresses
-  - Usernames
-  - Websites
-  - Images
-  - Locations
-  - Events
-  - Text content
-  - Custom entity types
+  - 📧 Email addresses
+  - 👤 Usernames
+  - 🌐 Websites
+  - 🖼️ Images
+  - 📍 Locations
+  - ⏰ Events
+  - 📝 Text content
+  - 🔧 Custom entity types
 
-- **Property System**
-  - Dynamic property validation
-  - Type-safe property handling
-  - Customizable property display
-  - Automated property getters
-
-### Transform System
+### 🔄 Transform System
 
 - **Email Analysis**
   - Google account investigation
   - Calendar event extraction
   - Location history analysis
   - Connected services discovery
-  - Profile photo retrieval
 
 - **Username Analysis**
   - Cross-platform username search
@@ -80,67 +94,78 @@ PANO is a powerful investigation and analysis platform designed for open-source 
 - **Image Analysis**
   - Reverse image search
   - Visual content analysis
-  - Image metadata extraction
+  - Metadata extraction
   - Related image discovery
 
-- **Text Analysis**
-  - Web content search
-  - Semantic analysis
-  - Content extraction
-  - Related content discovery
+### 🤖 AI Integration
 
-### AI Integration
-
-- **Natural Language Processing**
-  - Conversational interface
-  - Entity extraction from text
-  - Relationship inference
-  - Pattern recognition
-
-- **Portrait Generation**
-  - AI-powered facial composite creation
-  - Detailed attribute customization
-  - Multiple ethnicity support
-  - Feature-based generation
-
-### Investigation Tools
-
-- **Cross-Examination Helper**
-  - Statement analysis
-  - Contradiction detection
-  - Timeline correlation
+- **PANAI**
+  - Natural language investigation assistant
+  - Automated entity extraction and relationship mapping
+  - Pattern recognition and anomaly detection
   - Multi-language support
+  - Context-aware suggestions
+  - Timeline and graph analysis
 
-- **Project Management**
-  - Investigation saving/loading
-  - Project versioning
-  - Data export/import
-  - Collaboration features
+## 🧩 Core Components
 
-### User Interface
+### 📦 Entities
 
-- **Modern Design**
-  - Dark theme
-  - Customizable layouts
-  - Dockable windows
-  - Responsive interface
+Entities are the fundamental building blocks of PANO. They represent distinct pieces of information that can be connected and analyzed:
 
-- **Tool Integration**
-  - Unified toolbar
-  - Quick access features
-  - Keyboard shortcuts
-  - Status notifications
+- **Built-in Types**
+  - 📧 Email: Email addresses with service detection
+  - 👤 Username: Social media and platform usernames
+  - 🌐 Website: Web pages with metadata
+  - 🖼️ Image: Images with EXIF and analysis
+  - 📍 Location: Geographic coordinates and addresses
+  - ⏰ Event: Time-based occurrences
+  - 📝 Text: Generic text content
 
-## Development Guide
+- **Properties System**
+  - Type-safe property validation
+  - Automatic property getters
+  - Dynamic property updates
+  - Custom property types
+  - Metadata support
 
-### System Requirements
+### ⚡ Transforms
 
-- Operating System: Linux/Windows
-- Python 3.11+
-- PySide6 for GUI
-- Internet connection for online features
+Transforms are automated operations that process entities to discover new information and relationships:
 
-### Contributing
+- **Operation Types**
+  - 🔍 Discovery: Find new entities from existing ones
+  - 🔗 Correlation: Connect related entities
+  - 📊 Analysis: Extract insights from entity data
+  - 🌐 OSINT: Gather open-source intelligence
+  - 🔄 Enrichment: Add data to existing entities
+
+- **Features**
+  - Async operation support
+  - Progress tracking
+  - Error handling
+  - Rate limiting
+  - Result validation
+
+### 🛠️ Helpers
+
+Helpers are specialized tools with dedicated UIs for specific investigation tasks:
+
+- **Available Helpers**
+  - 🔍 Cross-Examination: Analyze statements and testimonies
+  - 👤 Portrait Creator: Generate facial composites
+  - 📊 Data Analyzer: Find patterns in investigation data
+  - 🌍 Location Mapper: Advanced geographic analysis
+  - 📅 Timeline Builder: Create and analyze event sequences
+
+- **Helper Features**
+  - Custom Qt interfaces
+  - Real-time updates
+  - Graph integration
+  - Data visualization
+  - Export capabilities
+
+## 👥 Contributing
 
 We welcome contributions! To contribute to PANO:
 
@@ -148,13 +173,25 @@ We welcome contributions! To contribute to PANO:
 2. Make your changes in your fork
 3. Test your changes thoroughly
 4. Create a Pull Request to our main branch
-5. In your PR description, please include:
+5. In your PR description, include:
    - What the changes do
    - Why you made these changes
    - Any testing you've done
    - Screenshots if applicable
 
-Note: We use a single `main` branch for development. All pull requests should be made directly to `main`.
+> **Note**: We use a single `main` branch for development. All pull requests should be made directly to `main`.
+
+## 📖 Development Guide
+
+<details>
+<summary>Click to expand development documentation</summary>
+
+### System Requirements
+
+- Operating System: Windows or Linux
+- Python 3.11+
+- PySide6 for GUI
+- Internet connection for online features
 
 ### Custom Entities
 
@@ -340,34 +377,25 @@ class DataAnalyzer(BaseHelper):
         # Your connection analysis logic here
         return "Connection analysis results..."
 ```
+</details>
 
-### Helper Registration
-
-Helpers are automatically discovered and registered when:
-1. They are placed in the `helpers` folder
-2. They inherit from `BaseHelper`
-3. They implement the required `name` and `description` class attributes
-4. They implement the `setup_ui` method
-
-## License
+## 📄 License
 
 This project is licensed under the Creative Commons Attribution-NonCommercial (CC BY-NC) License.
 
-This means you are free to:
-- Share: Copy and redistribute the material in any medium or format
-- Adapt: Remix, transform, and build upon the material
+**You are free to:**
+- ✅ Share: Copy and redistribute the material
+- ✅ Adapt: Remix, transform, and build upon the material
 
-Under the following terms:
-- Attribution: You must give appropriate credit, provide a link to the license, and indicate if changes were made
-- NonCommercial: You may not use the material for commercial purposes
-- No additional restrictions: You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits
+**Under these terms:**
+- ℹ️ Attribution: You must give appropriate credit
+- 🚫 NonCommercial: No commercial use
+- 🔓 No additional restrictions
 
-For more information, visit: https://creativecommons.org/licenses/by-nc/4.0/
-
-## Acknowledgments
+## 🙏 Acknowledgments
 
 Special thanks to all library authors and contributors who made this project possible.
 
-## Author
+## 👨‍💻 Author
 
-Created by ALW1EZ 
+Created by ALW1EZ
