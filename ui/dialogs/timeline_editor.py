@@ -18,7 +18,7 @@ class TimelineEvent:
 class AddEventDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Add Forensic Event")
+        self.setWindowTitle("Add Event")
         self.selected_color = TimelineStyle.EVENT_FILL_COLOR
         self.setup_ui()
         self.setStyleSheet(TimelineStyle.DIALOG_STYLE)

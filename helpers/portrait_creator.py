@@ -16,7 +16,7 @@ from datetime import datetime
 
 class PortraitCreator(BaseHelper):
     name = "Portrait Creator"
-    description = "Generate highly detailed facial composites for law enforcement and investigation"
+    description = "Generate highly detailed facial composites"
     
     def __init__(self, graph_manager, parent=None):
         super().__init__(graph_manager, parent)

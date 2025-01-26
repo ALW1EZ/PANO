@@ -72,7 +72,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "7.9.9"
+        self.version = "8.0.0"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -594,10 +594,27 @@ class MainWindow(QMainWindow):
                 
                 edges_data.append(edge_data)
 
+            # Get timeline data - only save manually added events
+            timeline_data = []
+            timeline_visual = self.timeline_manager.timeline_dock.findChild(TimelineVisual)
+            if timeline_visual:
+                for event in timeline_visual.events:
+                    # Only save events that don't have a source_entity_id (manually added events)
+                    if not hasattr(event, 'source_entity_id'):
+                        event_data = {
+                            'name': event.name,
+                            'description': event.description,
+                            'start_time': event.start_time.isoformat() if isinstance(event.start_time, datetime) else event.start_time,
+                            'end_time': event.end_time.isoformat() if isinstance(event.end_time, datetime) else event.end_time,
+                            'color': event.color.name() if hasattr(event.color, 'name') else event.color
+                        }
+                        timeline_data.append(event_data)
+
             # Create investigation data
             investigation_data = {
                 'nodes': nodes_data,
-                'edges': edges_data
+                'edges': edges_data,
+                'timeline_events': timeline_data
             }
 
             # Save to file
@@ -635,10 +652,11 @@ class MainWindow(QMainWindow):
             self.graph_view.graph_manager.clear()
             timeline_visual = self.timeline_manager.timeline_dock.findChild(TimelineVisual)
             if timeline_visual:
-                timeline_visual.events.clear()
+                # Only clear manually added events, keep auto-generated ones
+                timeline_visual.events = [e for e in timeline_visual.events if hasattr(e, 'source_entity_id')]
                 timeline_visual.update()
 
-            # Load nodes
+            # Load nodes first (this will generate entity events automatically)
             nodes = {}
             for node_data in investigation_data['nodes']:
                 entity_type = ENTITY_TYPES[node_data['entity_type']]
@@ -651,7 +669,7 @@ class MainWindow(QMainWindow):
                 node.update_label()  # Update the visual representation
                 nodes[node_data['id']] = node
 
-            # Load edges with all properties
+            # Load edges
             for edge_data in investigation_data['edges']:
                 source_id = edge_data['source']
                 target_id = edge_data['target']
@@ -677,6 +695,27 @@ class MainWindow(QMainWindow):
                 
                 if edge and 'properties' in edge_data:
                     edge.properties = edge_data['properties']
+
+            # Load manually added timeline events
+            if 'timeline_events' in investigation_data and timeline_visual:
+                for event_data in investigation_data['timeline_events']:
+                    # Parse dates from ISO format if they're strings
+                    start_time = event_data['start_time']
+                    end_time = event_data['end_time']
+                    
+                    if isinstance(start_time, str):
+                        start_time = datetime.fromisoformat(start_time)
+                    if isinstance(end_time, str):
+                        end_time = datetime.fromisoformat(end_time)
+                        
+                    event = TimelineEvent(
+                        name=event_data['name'],
+                        description=event_data['description'],
+                        start_time=start_time,
+                        end_time=end_time,
+                        color=QColor(event_data['color'])
+                    )
+                    timeline_visual.add_event(event)
 
             self.current_file = file_name
             status.set_text(f"Investigation loaded from {file_name}")

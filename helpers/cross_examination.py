@@ -257,7 +257,7 @@ class EntityStatementItem(QTreeWidgetItem):
 
 class CrossExaminationHelper(BaseHelper):
     name = "Cross-Examination Assistant"
-    description = "AI-powered analysis for testimony cross-examination and information gathering"
+    description = "AI-powered analysis for testimony cross-examination"
     
     LANGUAGES = {
         "English": "en",
