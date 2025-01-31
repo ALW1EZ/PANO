@@ -154,9 +154,9 @@ Helpers are specialized tools with dedicated UIs for specific investigation task
 - **Available Helpers**
   - 🔍 Cross-Examination: Analyze statements and testimonies
   - 👤 Portrait Creator: Generate facial composites
-  - 📊 Data Analyzer: Find patterns in investigation data
-  - 🌍 Location Mapper: Advanced geographic analysis
-  - 📅 Timeline Builder: Create and analyze event sequences
+  - 📸 Media Analyzer: Advanced image processing and analysis
+  - 🔍 Base Searcher: Search near places of interest
+  - 🔄 Translator: Translate text between languages
 
 - **Helper Features**
   - Custom Qt interfaces
@@ -290,92 +290,63 @@ from PySide6.QtWidgets import (
 from .base import BaseHelper
 from qasync import asyncSlot
 
-class DataAnalyzer(BaseHelper):
-    """A helper for analyzing investigation data patterns"""
+class DummyHelper(BaseHelper):
+    """A dummy helper for testing"""
     
-    name = "Data Analyzer"
-    description = "Analyze patterns and correlations in investigation data"
+    name = "Dummy Helper" 
+    description = "A dummy helper for testing"
     
-    def __init__(self, graph_manager=None, parent=None):
-        super().__init__(graph_manager, parent)
-        self.setup_ui()
-        
     def setup_ui(self):
         """Initialize the helper's user interface"""
-        # Main layout
-        self.main_layout = QVBoxLayout(self)
+        # Create input text area
+        self.input_label = QLabel("Input:")
+        self.input_text = QTextEdit()
+        self.input_text.setPlaceholderText("Enter text to process...")
+        self.input_text.setMinimumHeight(100)
         
-        # Analysis options
-        options_layout = QHBoxLayout()
+        # Create operation selector
+        operation_layout = QHBoxLayout()
+        self.operation_label = QLabel("Operation:")
+        self.operation_combo = QComboBox()
+        self.operation_combo.addItems(["Uppercase", "Lowercase", "Title Case"])
+        operation_layout.addWidget(self.operation_label)
+        operation_layout.addWidget(self.operation_combo)
         
-        # Analysis type selector
-        self.analysis_type = QComboBox()
-        self.analysis_type.addItems([
-            "Temporal Patterns",
-            "Location Clusters",
-            "Connection Analysis"
-        ])
-        options_layout.addWidget(QLabel("Analysis Type:"))
-        options_layout.addWidget(self.analysis_type)
+        # Create process button
+        self.process_btn = QPushButton("Process")
+        self.process_btn.clicked.connect(self.process_text)
         
-        # Add analyze button
-        analyze_btn = QPushButton("Analyze")
-        analyze_btn.clicked.connect(self.analyze_data)
-        options_layout.addWidget(analyze_btn)
+        # Create output text area
+        self.output_label = QLabel("Output:")
+        self.output_text = QTextEdit()
+        self.output_text.setReadOnly(True)
+        self.output_text.setMinimumHeight(100)
         
-        self.main_layout.addLayout(options_layout)
+        # Add widgets to main layout
+        self.main_layout.addWidget(self.input_label)
+        self.main_layout.addWidget(self.input_text)
+        self.main_layout.addLayout(operation_layout)
+        self.main_layout.addWidget(self.process_btn)
+        self.main_layout.addWidget(self.output_label)
+        self.main_layout.addWidget(self.output_text)
         
-        # Results area
-        self.results_area = QTextEdit()
-        self.results_area.setReadOnly(True)
-        self.results_area.setPlaceholderText("Analysis results will appear here...")
-        self.main_layout.addWidget(self.results_area)
+        # Set dialog size
+        self.resize(400, 500)
         
-        # Set helper window properties
-        self.setWindowTitle(self.name)
-        self.resize(800, 600)
-    
     @asyncSlot()
-    async def analyze_data(self):
-        """Perform the selected analysis on investigation data"""
-        analysis_type = self.analysis_type.currentText()
+    async def process_text(self):
+        """Process the input text based on selected operation"""
+        text = self.input_text.toPlainText()
+        operation = self.operation_combo.currentText()
         
-        if not self.graph_manager:
-            self.results_area.setText("No investigation data available")
-            return
+        if operation == "Uppercase":
+            result = text.upper()
+        elif operation == "Lowercase":
+            result = text.lower()
+        else:  # Title Case
+            result = text.title()
             
-        try:
-            # Get all nodes from the graph
-            nodes = self.graph_manager.nodes.values()
-            
-            # Perform analysis based on selected type
-            if analysis_type == "Temporal Patterns":
-                results = self._analyze_temporal_patterns(nodes)
-            elif analysis_type == "Location Clusters":
-                results = self._analyze_location_clusters(nodes)
-            else:
-                results = self._analyze_connections(nodes)
-                
-            # Display results
-            self.results_area.setText(results)
-            
-        except Exception as e:
-            self.results_area.setText(f"Analysis failed: {str(e)}")
-    
-    def _analyze_temporal_patterns(self, nodes):
-        """Analyze temporal patterns in the data"""
-        # Your temporal analysis logic here
-        return "Temporal analysis results..."
-    
-    def _analyze_location_clusters(self, nodes):
-        """Analyze location clusters in the data"""
-        # Your location clustering logic here
-        return "Location cluster analysis results..."
-    
-    def _analyze_connections(self, nodes):
-        """Analyze connection patterns in the data"""
-        # Your connection analysis logic here
-        return "Connection analysis results..."
+        self.output_text.setPlainText(result)
 ```
 </details>
 
