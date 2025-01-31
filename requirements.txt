@@ -12,3 +12,5 @@ googletrans
 markdown2
 g4f
 pydeck
+opencv-python
+numpy
