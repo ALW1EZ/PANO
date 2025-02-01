@@ -601,7 +601,6 @@ class ImageViewer(QMainWindow):
             self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
             # Create a fake left button press event to enable dragging
             fake_event = event
-            fake_event.setButton(Qt.MouseButton.LeftButton)
             self.view.mousePressEvent(fake_event)
         else:
             super().mousePressEvent(event)

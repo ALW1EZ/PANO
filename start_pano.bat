@@ -69,6 +69,9 @@ if not exist venv (
 echo Installing dependencies...
 pip install -r requirements.txt
 
+REM updating g4f
+pip install -U g4f
+
 REM Start PANO
 echo Starting PANO...
 python pano.py

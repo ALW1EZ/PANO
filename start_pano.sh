@@ -66,6 +66,9 @@ fi
 echo "Installing dependencies..."
 pip install -r requirements.txt
 
+# updating g4f
+pip install -U g4f
+
 # Start PANO
 echo "Starting PANO..."
 python3 pano.py 
