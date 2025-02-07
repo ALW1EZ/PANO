@@ -369,4 +369,4 @@ Special thanks to all library authors and contributors who made this project pos
 
 ## 👨‍💻 Author
 
-Created by ALW1EZ
+Created by ALW1EZ with AI ❤️

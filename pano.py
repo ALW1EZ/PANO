@@ -72,7 +72,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "8.1.4"
+        self.version = "8.1.5"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -220,10 +220,12 @@ class MainWindow(QMainWindow):
         Her şeye rağmen, beni koşulsuz şartsız seven ve destekleyen
         - Annem
 
-        Kendisinin benden haberi olmasa da, bana şarkıları ile destek olan
+        Kendisinin benden haberi olmasa da,
+        Şiirleri ile en çok bana destek olan
         - Sagopa Kajmer
 
-        Ve işimin kolaylaşmasını sağlayan bütün kütüphane yazarlarına teşekkürler.
+        İşimin kolaylaşmasını sağlayan bütün kütüphane yazarlarına ve
+        Yapay zekaya teşekkürler.
 
                                                                         - ALW1EZ
         """
