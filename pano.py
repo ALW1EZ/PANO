@@ -220,6 +220,9 @@ class MainWindow(QMainWindow):
         Her şeye rağmen, beni koşulsuz şartsız seven ve destekleyen
         - Annem
 
+        Varlığıyla övündüğüm, iyi ki var dediğim dostum
+        - Utku (@rhotav) Çorbacı
+
         Kendisinin benden haberi olmasa da,
         Şiirleri ile en çok bana destek olan
         - Sagopa Kajmer
