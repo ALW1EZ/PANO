@@ -46,8 +46,8 @@ You need to login with GHunt first.
 After starting the pano via starter scripts;
 
 1. Select venv manually
-  - Linux: `source venv/bin/activate`
-  - Windows: `call venv\Scripts\activate`
+   - Linux: `source venv/bin/activate`
+   - Windows: `call venv\Scripts\activate`
 3. See how to login [here](https://github.com/mxrch/GHunt/?tab=readme-ov-file#login)
 
 ## 💡 Quick Start Guide
