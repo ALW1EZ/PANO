@@ -107,6 +107,10 @@ class NodeVisual(QGraphicsObject):
         font = QFont("Geist Mono", 12)
         self.label.setFont(font)
         
+        # Enable word wrapping for text entities
+        if self.node.type == "Text":
+            self.label.setTextWidth(self.style.min_width - self.style.padding * 2)
+        
         # Properties text
         self.properties_item = QGraphicsTextItem(self)
         self.properties_item.setDefaultTextColor(self.style.property_color)
@@ -133,10 +137,14 @@ class NodeVisual(QGraphicsObject):
         """Calculate sizes of all content elements"""
         # Update labels
         self.type_label.setPlainText(self.node.type_label)
-        if len(self.node.get_main_display()) > 30:
-            self.label.setPlainText(self.node.get_main_display()[:30] + "...")
-        else:
+        # Remove character limit for text entities
+        if self.node.type == "Text":
             self.label.setPlainText(self.node.get_main_display())
+        else:
+            if len(self.node.get_main_display()) > 30:
+                self.label.setPlainText(self.node.get_main_display()[:30] + "...")
+            else:
+                self.label.setPlainText(self.node.get_main_display())
         
         # Update properties
         prop_text = []
@@ -201,6 +209,13 @@ class NodeVisual(QGraphicsObject):
         # Update dimensions
         self.dimensions.width = max(min_content_width, self.dimensions.min_width)
         self.dimensions.height = max(base_height, image_height + self.style.padding * 2, self.dimensions.min_height)
+        
+        # Update text width for text entities
+        if self.node.type == "Text":
+            available_width = self.dimensions.width - self.style.padding * 2
+            if has_image:
+                available_width -= (image_width + self.style.image_padding * 2)
+            self.label.setTextWidth(available_width)
 
     def _position_elements(self, content_sizes):
         """Position all elements based on current dimensions"""
