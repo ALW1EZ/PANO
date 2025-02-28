@@ -32,7 +32,7 @@ class PropertyEditor(QDialog):
             row = QHBoxLayout()
             
             # Label
-            label = QLabel(f"{prop_name}:")
+            label = QLabel(f"{prop_name.title().replace('_', ' ')}:")
             row.addWidget(label)
             
             # Get property metadata
