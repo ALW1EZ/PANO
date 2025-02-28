@@ -9,8 +9,10 @@ from entities.event import Event
 from entities.location import Location
 from ..components.node_visual import NodeVisual
 from ..components.edge_visual import EdgeVisual
+from ..components.group_visual import GroupVisual
 from ..dialogs.timeline_editor import TimelineEvent
 from .map_manager import MapManager
+from .group_manager import GroupManager
 from ..components.node_visual import NodeVisualState
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,12 @@ class GraphManager(QObject):
         self.view = view
         self.nodes: Dict[str, NodeVisual] = {}
         self.edges: Dict[str, EdgeVisual] = {}
+        self.groups: Dict[str, GroupVisual] = {}
         self.map_manager: MapManager | None = None
+        self.group_manager = GroupManager(self)
+        
+        # Connect to group manager signals
+        self.group_manager.groups_changed.connect(self._update_group_visuals)
         
     def set_map_manager(self, map_manager: MapManager) -> None:
         """Set the map manager instance"""
@@ -96,28 +103,8 @@ class GraphManager(QObject):
         if isinstance(entity, Location) and self.map_manager:
             self.map_manager.update_location(entity)
             
-        # Handle event entities
-        if isinstance(entity, Event):
-            window = self.view.window()
-            if hasattr(window, 'timeline_manager'):
-                # Remove old event from timeline if it exists
-                timeline_manager = window.timeline_manager
-                existing_events = [e for e in timeline_manager.get_events() 
-                                 if getattr(e, 'source_entity_id', None) == node_id]
-                for event in existing_events:
-                    timeline_manager.timeline_widget.delete_event(event)
-                    
-                # Add updated event to timeline if it has dates and add_to_timeline is True
-                if entity.start_date and entity.end_date and entity.properties.get("add_to_timeline", True):
-                    timeline_event = TimelineEvent(
-                        name=entity.name,
-                        description=entity.description or "",
-                        start_time=entity.start_date,
-                        end_time=entity.end_date,
-                        color=QColor(entity.color)
-                    )
-                    timeline_event.source_entity_id = entity.id
-                    timeline_manager.add_event(timeline_event)
+        # Update any groups containing this node
+        self._update_group_visuals()
         
     def remove_node(self, node_id: str) -> None:
         """Remove a node and its connected edges from the graph"""
@@ -142,6 +129,10 @@ class GraphManager(QObject):
             edge = self.edges.pop(edge_id)
             self.view.scene.removeItem(edge)
             
+        # Remove from any groups
+        for group in self.group_manager.groups.values():
+            group.remove_node(node_id)
+            
         # Remove the node
         self.nodes.pop(node_id)
         
@@ -160,43 +151,37 @@ class GraphManager(QObject):
         
     def clear(self) -> None:
         """Clear all nodes and edges from the graph"""
-        # Clear edges first to avoid dangling references
+        # Clear edges first
         for edge in self.edges.values():
             self.view.scene.removeItem(edge)
         self.edges.clear()
         
-        # Then clear nodes
+        # Clear nodes
         for node in self.nodes.values():
             self.view.scene.removeItem(node)
         self.nodes.clear()
+        
+        # Clear groups
+        self.group_manager.groups.clear()
+        for group in self.groups.values():
+            self.view.scene.removeItem(group)
+        self.groups.clear()
+        
         self.nodes_changed.emit()
         
-    def to_dict(self) -> Dict[str, Any]:
-        """Serialize the graph state to a dictionary"""
-        nodes_data = {}
-        for node_id, node in self.nodes.items():
-            nodes_data[node_id] = {
-                'entity': node.node.to_dict(),
-                'pos': {
-                    'x': node.pos().x(),
-                    'y': node.pos().y()
-                }
-            }
-            
-        edges_data = {}
-        for edge_id, edge in self.edges.items():
-            edges_data[edge_id] = {
-                'source': edge.source.node.id,
-                'target': edge.target.node.id,
-                'relationship': edge.relationship,
-                'style': edge.style.style.value
-            }
-            
-        return {
-            'nodes': nodes_data,
-            'edges': edges_data
-        }
+    def _update_group_visuals(self) -> None:
+        """Update visual representations of all groups"""
+        # Remove old group visuals
+        for group in self.groups.values():
+            self.view.scene.removeItem(group)
+        self.groups.clear()
         
+        # Create new group visuals
+        for group in self.group_manager.groups.values():
+            visual = GroupVisual(group, self)
+            self.view.scene.addItem(visual)
+            self.groups[group.id] = visual
+            
     async def from_dict(self, data: Dict[str, Any]) -> None:
         """Restore graph state from a dictionary"""
         self.clear()
@@ -220,9 +205,35 @@ class GraphManager(QObject):
             # Restore edge style if present
             if 'style' in edge_data and edge:
                 edge.style.style = Qt.PenStyle(edge_data['style'])
+                
+        # Finally restore groups if present
+        if 'groups' in data:
+            self.group_manager.from_dict(data['groups'])
             
         # Allow UI to update
-        await asyncio.sleep(0) 
+        await asyncio.sleep(0)
+        
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert graph state to a dictionary"""
+        return {
+            'nodes': {
+                node_id: {
+                    'entity': node.node.to_dict(),
+                    'pos': {'x': node.pos().x(), 'y': node.pos().y()}
+                }
+                for node_id, node in self.nodes.items()
+            },
+            'edges': {
+                edge_id: {
+                    'source': edge.source.node.id,
+                    'target': edge.target.node.id,
+                    'relationship': edge.relationship,
+                    'style': edge.style.style.value if hasattr(edge.style, 'style') else None
+                }
+                for edge_id, edge in self.edges.items()
+            },
+            'groups': self.group_manager.to_dict()
+        }
         
     def center_on_node(self, node: NodeVisual) -> None:
         """Center the view on a specific node"""

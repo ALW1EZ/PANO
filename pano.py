@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QToolBar,
     QLineEdit, QMessageBox, QFileDialog, QListWidget, QLabel,
     QSplitter, QListWidgetItem, QDockWidget, QVBoxLayout, QWidget, QStatusBar, QPushButton, QDialog,
-    QComboBox, QSizePolicy, QListView, QMenu
+    QComboBox, QSizePolicy, QListView, QMenu, QInputDialog, QColorDialog
 )
 from qasync import QEventLoop, asyncSlot
 
@@ -72,7 +72,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "8.1.6"
+        self.version = "8.2.6"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -290,7 +290,10 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.new_action)
         self.toolbar.addAction(self.save_action)
         self.toolbar.addAction(self.load_action)
-
+        
+        # Add separator
+        self.toolbar.addSeparator()
+        
         # Add Windows button with menu
         windows_button = QPushButton("Windows")
         windows_menu = QMenu(self)
@@ -298,10 +301,10 @@ class MainWindow(QMainWindow):
         windows_menu.addAction(self.view_tools_action)
         windows_button.clicked.connect(lambda: windows_menu.exec(windows_button.mapToGlobal(windows_button.rect().bottomLeft())))
         self.toolbar.addWidget(windows_button)
-
+        
         # Add separator
         self.toolbar.addSeparator()
-
+        
         # Add helper dropdown
         self.helper_combo = QComboBox()
         self.helper_combo.setMinimumWidth(200)  # Make wider
@@ -615,11 +618,15 @@ class MainWindow(QMainWindow):
                         }
                         timeline_data.append(event_data)
 
+            # Get groups data
+            groups_data = self.graph_view.graph_manager.group_manager.to_dict()
+
             # Create investigation data
             investigation_data = {
                 'nodes': nodes_data,
                 'edges': edges_data,
-                'timeline_events': timeline_data
+                'timeline_events': timeline_data,
+                'groups': groups_data
             }
 
             # Save to file
@@ -722,6 +729,10 @@ class MainWindow(QMainWindow):
                     )
                     timeline_visual.add_event(event)
 
+            # Load groups
+            if 'groups' in investigation_data:
+                self.graph_view.graph_manager.group_manager.from_dict(investigation_data['groups'])
+
             self.current_file = file_name
             status.set_text(f"Investigation loaded from {file_name}")
 
@@ -776,6 +787,53 @@ class MainWindow(QMainWindow):
         """Show/Hide the tools dock"""
         self.tools_dock.setVisible(not self.tools_dock.isVisible())
         self.tools_dock.raise_()
+
+    def create_group(self):
+        """Create a new group from selected nodes"""
+        # Get selected nodes
+        selected_nodes = [item for item in self.graph_view.scene.selectedItems() 
+                         if isinstance(item, NodeVisual)]
+        
+        if not selected_nodes:
+            QMessageBox.warning(self, "Create Group", "Please select nodes to group")
+            return
+            
+        # Create dialog for group name
+        name, ok = QInputDialog.getText(
+            self, 
+            "Create Group",
+            "Enter group name:",
+            QLineEdit.EchoMode.Normal,
+            f"Group {len(self.graph_view.graph_manager.group_manager.groups) + 1}"
+        )
+        
+        if ok and name:
+            # Create color picker dialog
+            color = QColorDialog.getColor(
+                QColor("#3d3d3d"),
+                self,
+                "Choose Group Color"
+            )
+            
+            if color.isValid():
+                # Create group with selected nodes
+                node_ids = [node.node.id for node in selected_nodes]
+                self.graph_view.graph_manager.group_manager.create_group(
+                    name,
+                    node_ids,
+                    color
+                )
+                
+    def clear_groups(self):
+        """Clear all groups"""
+        if QMessageBox.question(
+            self,
+            "Clear Groups",
+            "Are you sure you want to remove all groups?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ) == QMessageBox.StandardButton.Yes:
+            self.graph_view.graph_manager.group_manager.groups.clear()
+            self.graph_view.graph_manager.group_manager.groups_changed.emit()
 
 def main():
     """Main entry point for the application"""

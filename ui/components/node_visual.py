@@ -367,6 +367,35 @@ class NodeVisual(QGraphicsObject):
             action.triggered.connect(
                 lambda checked, t=transform: self._handle_transform_action(t)
             )
+
+        # Add separator before groups section
+        menu.addSeparator()
+
+        # Groups submenu
+        groups_menu = menu.addMenu("Groups")
+        groups_menu.setStyleSheet(menu.styleSheet())
+
+        # Create group action
+        create_group_action = groups_menu.addAction("Create Group")
+        create_group_action.triggered.connect(self._create_group)
+
+        # Add to group submenu
+        add_to_group_menu = groups_menu.addMenu("Add to Group")
+        add_to_group_menu.setStyleSheet(menu.styleSheet())
+        self._populate_add_to_group_menu(add_to_group_menu)
+
+        # Remove from group submenu
+        remove_from_group_menu = groups_menu.addMenu("Remove from Group")
+        remove_from_group_menu.setStyleSheet(menu.styleSheet())
+        self._populate_remove_from_group_menu(remove_from_group_menu)
+
+        # Remove from all groups action
+        remove_all_groups_action = groups_menu.addAction("Remove from All Groups")
+        remove_all_groups_action.triggered.connect(self._remove_from_all_groups)
+
+        # Clear all groups action (now deletes ALL groups)
+        clear_groups_action = groups_menu.addAction("Clear All Groups")
+        clear_groups_action.triggered.connect(lambda: self.scene().views()[0].graph_manager.group_manager.clear_all_groups())
         
         menu.exec(event.screenPos())
 
@@ -746,3 +775,133 @@ class NodeVisual(QGraphicsObject):
             if self._show_delete_confirmation("Delete Nodes", "Are you sure you want to delete these nodes?"):
                 for node in selected_nodes:
                     view.graph_manager.remove_node(node.node.id)
+
+    def _create_group(self):
+        """Create a new group from selected nodes"""
+        selected_nodes = [item for item in self.scene().selectedItems() 
+                         if isinstance(item, NodeVisual)]
+        if not selected_nodes:
+            QMessageBox.warning(None, "Create Group", "Please select nodes to create a group")
+            return
+
+        dialog = QDialog(self.scene().views()[0])
+        dialog.setWindowTitle("Create Group")
+        layout = QVBoxLayout(dialog)
+
+        # Group name input
+        name_layout = QHBoxLayout()
+        name_label = QLabel("Group Name:")
+        name_input = QLineEdit()
+        name_layout.addWidget(name_label)
+        name_layout.addWidget(name_input)
+        layout.addLayout(name_layout)
+
+        # Buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | 
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        # Apply dark theme
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #2D2D30;
+                color: #CCCCCC;
+            }
+            QLabel {
+                color: #CCCCCC;
+            }
+            QLineEdit {
+                background-color: #1E1E1E;
+                color: #CCCCCC;
+                border: 1px solid #3F3F46;
+                padding: 5px;
+                border-radius: 2px;
+            }
+            QPushButton {
+                background-color: #007ACC;
+                color: #FFFFFF;
+                border: none;
+                padding: 5px 15px;
+                border-radius: 2px;
+            }
+        """)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            group_name = name_input.text().strip()
+            if group_name:
+                view = self.scene().views()[0]
+                if hasattr(view, 'graph_manager'):
+                    node_ids = [node.node.id for node in selected_nodes]
+                    view.graph_manager.group_manager.create_group(group_name, node_ids)
+
+    def _populate_add_to_group_menu(self, menu):
+        """Populate the Add to Group submenu with existing groups"""
+        view = self.scene().views()[0]
+        if hasattr(view, 'graph_manager'):
+            groups = view.graph_manager.group_manager.groups.values()
+            if not groups:
+                action = menu.addAction("No groups available")
+                action.setEnabled(False)
+            else:
+                for group in groups:
+                    action = menu.addAction(group.name)
+                    action.triggered.connect(
+                        lambda checked, g=group: self._add_to_group(g.id)
+                    )
+
+    def _populate_remove_from_group_menu(self, menu):
+        """Populate the Remove from Group submenu with groups the node belongs to"""
+        view = self.scene().views()[0]
+        if hasattr(view, 'graph_manager'):
+            node_groups = view.graph_manager.group_manager.get_node_groups(self.node.id)
+            if not node_groups:
+                action = menu.addAction("Not in any groups")
+                action.setEnabled(False)
+            else:
+                for group in node_groups:
+                    action = menu.addAction(group.name)
+                    action.triggered.connect(
+                        lambda checked, g=group: self._remove_from_group(g.id)
+                    )
+
+    def _add_to_group(self, group_id):
+        """Add selected nodes to the specified group"""
+        selected_nodes = [item for item in self.scene().selectedItems() 
+                         if isinstance(item, NodeVisual)]
+        if not selected_nodes:
+            selected_nodes = [self]
+
+        view = self.scene().views()[0]
+        if hasattr(view, 'graph_manager'):
+            for node in selected_nodes:
+                view.graph_manager.group_manager.add_node_to_group(group_id, node.node.id)
+
+    def _remove_from_group(self, group_id):
+        """Remove selected nodes from the specified group"""
+        selected_nodes = [item for item in self.scene().selectedItems() 
+                         if isinstance(item, NodeVisual)]
+        if not selected_nodes:
+            selected_nodes = [self]
+
+        view = self.scene().views()[0]
+        if hasattr(view, 'graph_manager'):
+            for node in selected_nodes:
+                view.graph_manager.group_manager.remove_node_from_group(group_id, node.node.id)
+
+    def _remove_from_all_groups(self):
+        """Remove selected nodes from all their groups"""
+        selected_nodes = [item for item in self.scene().selectedItems() 
+                         if isinstance(item, NodeVisual)]
+        if not selected_nodes:
+            selected_nodes = [self]
+
+        view = self.scene().views()[0]
+        if hasattr(view, 'graph_manager'):
+            for node in selected_nodes:
+                node_groups = view.graph_manager.group_manager.get_node_groups(node.node.id)
+                for group in node_groups:
+                    view.graph_manager.group_manager.remove_node_from_group(group.id, node.node.id)
