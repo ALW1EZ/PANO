@@ -7,15 +7,6 @@ import logging
 import sys
 import os
 
-# Check for WebGL initialization issues and set fallback
-try:
-    from PySide6.QtGui import QOpenGLContext
-    if not QOpenGLContext.supportsThreadedOpenGL():
-        raise RuntimeError("WebGL2 context initialization failed")
-except RuntimeError as e:
-    print(f"Warning: {e}. Falling back to software rendering.")
-    os.environ["QT_OPENGL"] = "software"
-
 from PySide6.QtCore import Qt, QPointF, QMimeData, QSize, QTimer
 from PySide6.QtGui import QAction, QDrag, QIcon, QColor
 from PySide6.QtWidgets import (
@@ -83,7 +74,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "8.2.8"
+        self.version = "8.2.7"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
