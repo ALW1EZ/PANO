@@ -74,7 +74,7 @@ class DateTimeEncoder(json.JSONEncoder):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "8.2.7"
+        self.version = "8.2.8"
         self.setWindowTitle(f"PANO - Platform for Analysis and Network Operations | v{self.version}")
         self.selected_entity = None
         self.current_file = None
@@ -836,6 +836,18 @@ class MainWindow(QMainWindow):
         ) == QMessageBox.StandardButton.Yes:
             self.graph_view.graph_manager.group_manager.groups.clear()
             self.graph_view.graph_manager.group_manager.groups_changed.emit()
+
+def configure_rendering():
+    """Configure rendering mode based on user input."""
+    # Check for an environment variable or command-line argument to disable GPU rendering
+    if os.environ.get("DISABLE_GPU_RENDERING", "false").lower() == "true" or "--disable-gpu" in sys.argv:
+        os.environ["QT_OPENGL"] = "software"
+        logger.info("Software rendering mode enabled.")
+    else:
+        logger.info("Default rendering mode enabled.")
+
+# Call the function before initializing the application
+configure_rendering()
 
 def main():
     """Main entry point for the application"""
