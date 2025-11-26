@@ -87,6 +87,16 @@ class GraphManager(QObject):
         self.view.scene.addItem(edge)
         self.edges[edge_id] = edge
         return edge
+
+    def remove_edge(self, source_id: str, target_id: str) -> None:
+        """Remove an existing edge between two nodes, if present."""
+        edge_id = f"{source_id}->{target_id}"
+        edge = self.edges.pop(edge_id, None)
+        if edge is not None:
+            try:
+                self.view.scene.removeItem(edge)
+            except Exception:
+                pass
         
     def update_node(self, node_id: str, entity: Entity) -> None:
         """Update an existing node's entity"""
