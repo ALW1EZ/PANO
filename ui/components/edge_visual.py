@@ -6,6 +6,7 @@ import math
 from .node_visual import NodeVisual
 from ..styles.edge_style import EdgeStyle
 from ..dialogs.edge_properties import EdgePropertiesDialog
+from ..commands.graph_commands import RemoveEdgeCommand, UpdateEdgeCommand
 
 class EdgeVisual(QGraphicsItem):
     def __init__(self, source: NodeVisual, target: NodeVisual, 
@@ -227,13 +228,38 @@ class EdgeVisual(QGraphicsItem):
                 if self.scene():
                     view = self.scene().views()[0]
                     if hasattr(view, 'graph_manager'):
-                        edge_id = f"{self.source.node.id}->{self.target.node.id}"
-                        view.graph_manager.edges.pop(edge_id, None)
-                        self.scene().removeItem(self)
+                        # Use undo stack if available
+                        if getattr(view, 'undo_stack', None):
+                            view.undo_stack.push(
+                                RemoveEdgeCommand(
+                                    view.graph_manager,
+                                    self.source.node.id,
+                                    self.target.node.id
+                                )
+                            )
+                        else:
+                            # Fallback to direct removal via manager API
+                            view.graph_manager.remove_edge(self.source.node.id, self.target.node.id)
             else:
-                self.relationship = values['relationship']
-                self.style.style = values['line_style']
-                self.text_item.setPlainText(self.relationship)
-                self.updatePosition()
-                self.update()
+                # Apply edits via undoable command if available
+                if self.scene():
+                    view = self.scene().views()[0]
+                    if getattr(view, 'undo_stack', None):
+                        pen_style_val = values['line_style']
+                        pen_style_int = getattr(pen_style_val, 'value', pen_style_val)
+                        view.undo_stack.push(
+                            UpdateEdgeCommand(
+                                view.graph_manager,
+                                self.source.node.id,
+                                self.target.node.id,
+                                relationship=values['relationship'],
+                                pen_style=pen_style_int
+                            )
+                        )
+                    else:
+                        self.relationship = values['relationship']
+                        self.style.style = values['line_style']
+                        self.text_item.setPlainText(self.relationship)
+                        self.updatePosition()
+                        self.update()
         event.accept()  # Accept the event to prevent further propagation 

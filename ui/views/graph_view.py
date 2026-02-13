@@ -9,6 +9,7 @@ from ..managers.graph_manager import GraphManager
 from entities import Entity, ENTITY_TYPES
 from entities.event import Event
 from ..dialogs.timeline_editor import TimelineEvent
+from ..commands.graph_commands import AddNodeCommand, RemoveNodeCommand
 
 class GraphView(QGraphicsView):
     scaleChanged = Signal(float)
@@ -22,6 +23,7 @@ class GraphView(QGraphicsView):
         self._last_pan_point = None
         self._rubber_band_origin = None
         self._rubber_band_rect = None
+        self.undo_stack = None  # Will be set by MainWindow
         
         # Set a very large scene rect for infinite panning
         self.scene.setSceneRect(-50000, -50000, 100000, 100000)
@@ -230,7 +232,10 @@ class GraphView(QGraphicsView):
             if entity_name in ENTITY_TYPES:
                 entity_class = ENTITY_TYPES[entity_name]
                 entity = entity_class(label=f"{entity_name}")
-                self.graph_manager.add_node(entity, pos)
+                if getattr(self, 'undo_stack', None):
+                    self.undo_stack.push(AddNodeCommand(self.graph_manager, entity, pos))
+                else:
+                    self.graph_manager.add_node(entity, pos)
             
             event.acceptProposedAction()
 
@@ -260,7 +265,10 @@ class GraphView(QGraphicsView):
         # Delete all selected nodes
         for node in selected_nodes:
             if hasattr(self, 'graph_manager'):
-                self.graph_manager.remove_node(node.node.id)
+                if getattr(self, 'undo_stack', None):
+                    self.undo_stack.push(RemoveNodeCommand(self.graph_manager, node.node.id))
+                else:
+                    self.graph_manager.remove_node(node.node.id)
 
     def add_node(self, entity: Entity, pos: Optional[QPointF] = None) -> Optional[NodeVisual]:
         """Add a node to the graph"""

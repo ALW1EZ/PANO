@@ -8,7 +8,7 @@ import sys
 import os
 
 from PySide6.QtCore import Qt, QPointF, QMimeData, QSize, QTimer
-from PySide6.QtGui import QAction, QDrag, QIcon, QColor
+from PySide6.QtGui import QAction, QDrag, QIcon, QColor, QUndoStack, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QToolBar,
     QLineEdit, QMessageBox, QFileDialog, QListWidget, QLabel,
@@ -86,13 +86,25 @@ class MainWindow(QMainWindow):
         # Setup initial UI components
         self._setup_actions()
         self._init_ui_components()
-        
+
         # Create managers first
         self._setup_managers()
-        
+
+        # Initialize undo/redo stack and connect to graph view
+        self.undo_stack = QUndoStack(self)
+        self.graph_view.undo_stack = self.undo_stack
+        # Create undo/redo actions (created before toolbar so toolbar can use them)
+        self.undo_action = self.undo_stack.createUndoAction(self, "Undo")
+        self.undo_action.setShortcuts([QKeySequence.StandardKey.Undo])
+        self.redo_action = self.undo_stack.createRedoAction(self, "Redo")
+        self.redo_action.setShortcuts([QKeySequence.StandardKey.Redo])
+        # Add actions to the window so shortcuts work even if not on the toolbar
+        self.addAction(self.undo_action)
+        self.addAction(self.redo_action)
+
         # Now setup the complete UI with managers
         self._setup_ui()
-        
+
         self.resize(1200, 800)
         logger.info("PANO initialized successfully")
         
@@ -292,6 +304,8 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.new_action)
         self.toolbar.addAction(self.save_action)
         self.toolbar.addAction(self.load_action)
+
+        # Intentionally, do NOT add undo/redo actions to the toolbar
         
         # Add separator
         self.toolbar.addSeparator()
@@ -664,6 +678,9 @@ class MainWindow(QMainWindow):
 
             # Clear existing graph
             self.graph_view.graph_manager.clear()
+            # Clear undo history when loading a file
+            if hasattr(self, 'undo_stack'):
+                self.undo_stack.clear()
             timeline_visual = self.timeline_manager.timeline_dock.findChild(TimelineVisual)
             if timeline_visual:
                 # Only clear manually added events, keep auto-generated ones
@@ -753,6 +770,9 @@ class MainWindow(QMainWindow):
         """Create a new investigation"""
         if QMessageBox.question(self, "Clear Investigation", "Are you sure you want to clear the current investigation?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
             self.graph_view.graph_manager.clear()
+            # Clear undo history on new investigation
+            if hasattr(self, 'undo_stack'):
+                self.undo_stack.clear()
             timeline_visual = self.timeline_manager.timeline_dock.findChild(TimelineVisual)
             if timeline_visual:
                 timeline_visual.events.clear()

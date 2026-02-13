@@ -31,6 +31,7 @@ from ..styles.node_style import NodeStyle
 from ..dialogs.property_editor import PropertyEditor
 from ..managers.timeline_manager import TimelineEvent
 from ui.managers.status_manager import StatusManager
+from ..commands.graph_commands import AddEdgeCommand
 
 class NodeVisualState(Enum):
     """Enum for node visual states"""
@@ -601,11 +602,21 @@ class NodeVisual(QGraphicsObject):
             view = self.scene().views()[0]
             if hasattr(view, 'graph_manager'):
                 try:
-                    view.graph_manager.add_edge(
-                        self.node.id,
-                        target_node.node.id,
-                        label_input.text()
-                    )
+                    if getattr(view, 'undo_stack', None):
+                        view.undo_stack.push(
+                            AddEdgeCommand(
+                                view.graph_manager,
+                                self.node.id,
+                                target_node.node.id,
+                                relationship=label_input.text()
+                            )
+                        )
+                    else:
+                        view.graph_manager.add_edge(
+                            self.node.id,
+                            target_node.node.id,
+                            label_input.text()
+                        )
                 except Exception as e:
                     QMessageBox.warning(
                         view, "Error Creating Relationship", str(e)
