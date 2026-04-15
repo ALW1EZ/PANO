@@ -279,7 +279,7 @@ class PropertyEditor(QDialog):
                     date_picker.setDateTime(QDateTime.currentDateTime())
             else:
                 date_picker.setDateTime(QDateTime.currentDateTime())
-        except:
+        except Exception:
             date_picker.setDateTime(QDateTime.currentDateTime())
             
         # Set seconds to 00

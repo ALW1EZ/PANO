@@ -586,7 +586,7 @@ class ImageViewer(QMainWindow):
         if self.temp_file and os.path.exists(self.temp_file):
             try:
                 os.unlink(self.temp_file)
-            except:
+            except Exception:
                 pass
         super().closeEvent(event) 
         

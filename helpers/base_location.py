@@ -80,7 +80,7 @@ class FilterDialog(QDialog):
             )
             suggestions = response.json()
             self.completer_model.setStringList(suggestions)
-        except:
+        except Exception:
             pass  # Silently fail for autocomplete
         finally:
             self.autocomplete_timer.stop()
