@@ -555,7 +555,7 @@ Use markdown formatting for your response.
                 return value
             try:
                 return str(value)
-            except:
+            except Exception:
                 return None
         
         # Collect entities with their properties
