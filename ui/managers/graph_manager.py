@@ -166,8 +166,16 @@ class GraphManager(QObject):
             self.view.scene.removeItem(edge)
         self.edges.clear()
         
-        # Clear nodes
-        for node in self.nodes.values():
+        # Clear entity-owned map markers and timeline entries with their nodes
+        window = self.view.window()
+        timeline_manager = getattr(window, "timeline_manager", None)
+        for node_id, node in self.nodes.items():
+            if isinstance(node.node, Location) and self.map_manager:
+                self.map_manager.remove_location(node_id)
+            if isinstance(node.node, Event) and timeline_manager:
+                for event in list(timeline_manager.get_events()):
+                    if getattr(event, "source_entity_id", None) == node_id:
+                        timeline_manager.timeline_widget.delete_event(event)
             self.view.scene.removeItem(node)
         self.nodes.clear()
         
